@@ -536,6 +536,11 @@ func DefaultParamsFor(level int) Params {
 			// trust: +73 (s.e. 92), 0.2 points more on time.
 			p.ChainCostGain = 0.25
 			p.TrustRush = 0.08
+			// e21: an order whose chain found no driver may go into a second chain before it
+			// goes alone. 189 chains are tried a week instead of 134 and 111 booked instead
+			// of 90, with the same orders: +354 a week on 48 worlds (s.e. 107, better in
+			// 35), on time -0.1 points; worlds joined on Thursday 5,421 against 5,206.
+			p.ChainTries = 2
 			p.LateMax = 1
 		}
 		if level == paramsShortageLevel {

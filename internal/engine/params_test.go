@@ -73,6 +73,9 @@ func TestFeeClockByLevel(t *testing.T) {
 		if p.ChainCostGain != chainGain || p.TrustRush != rush {
 			t.Errorf("level %d: chain discount %.2f, trust rush %.2f, want %.2f and %.2f", level, p.ChainCostGain, p.TrustRush, chainGain, rush)
 		}
+		if p.FirstDayCost != 0 || p.RosterCost != 0 || p.SpeedPremium != 0 {
+			t.Errorf("level %d: first-day cost, roster cost and speed premium should be off", level)
+		}
 	}
 }
 
@@ -93,10 +96,10 @@ func TestLateFeeStaysFlatThenRisesAtTheEnd(t *testing.T) {
 	}
 }
 
-// An order may be part of one chain attempt, of two where drivers are plentiful and every
-// quote wins (level 3).
+// An order may be part of one chain attempt; of two where drivers are plentiful and every
+// quote wins (level 3), and at level 8 since e21 (+354 a week on 48 worlds).
 func TestChainAttemptsByLevel(t *testing.T) {
-	want := map[int]int{3: 2, 5: 1, 7: 1, 8: 1}
+	want := map[int]int{3: 2, 5: 1, 7: 1, 8: 2}
 	for level, tries := range want {
 		if got := DefaultParamsFor(level).ChainTries; got != tries {
 			t.Errorf("level %d: %d chain attempts per order, want %d", level, got, tries)
