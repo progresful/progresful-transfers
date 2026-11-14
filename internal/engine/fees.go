@@ -165,6 +165,17 @@ func fromNow(schedule []api.FeeStep, now int) []api.FeeStep {
 	return out
 }
 
+// stepsUntil is a schedule without the steps that start after minute t (the first step stays).
+func stepsUntil(schedule []api.FeeStep, t int) []api.FeeStep {
+	out := make([]api.FeeStep, 0, len(schedule))
+	for i, s := range schedule {
+		if i == 0 || s.At <= t {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // nextStepAfter is the minute of the first step after now, or -1 when the schedule has stopped rising.
 func nextStepAfter(schedule []api.FeeStep, now int) int {
 	for _, s := range schedule {

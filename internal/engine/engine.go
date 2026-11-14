@@ -41,12 +41,16 @@ type Engine struct {
 	cold bool
 	// snow is the forecasts heard so far (snow.go).
 	snow []snowSpell
+	// outage follows the day's answers for the competitor's outage (outage.go); nil when off.
+	outage *outageWatch
 	// decided is why each price request was answered as it was, for the run log; why,
 	// whyRisk and whyCap are filled while a request is priced.
 	decided []Decision
 	why     string
 	whyRisk float64
 	whyCap  float64
+	whyDown float64
+	whyLvl  float64
 	stats   Stats
 	// replay is set while Rejoin feeds old events through the books: nothing is sent.
 	replay bool
@@ -80,6 +84,9 @@ func New(level int, p Params, m *geo.Map) *Engine {
 		e.P.MarketStart = marketStartFor(level)
 	}
 	e.market = newMarket(e.P, level)
+	if e.P.Outage > 1 && e.market.beliefs != nil {
+		e.outage = newOutageWatch(m, e.P.OutagePrior, e.P.Outage)
+	}
 	e.market.around = e.placesAround
 	return e
 }
@@ -142,6 +149,10 @@ type Decision struct {
 	Why       string  `json:"why,omitempty"` // why the request was passed; empty when it was priced
 	Risk      float64 `json:"risk"`          // of the options priced, or of the safest option refused
 	Cap       float64 `json:"cap,omitempty"` // the highest risk still priced at that moment
+	// Outage is the chance, as the engine saw it, that the competitor was down in the
+	// request's region (outage.go); Level is the market level the quote was priced against.
+	Outage float64 `json:"outage,omitempty"`
+	Level  float64 `json:"level,omitempty"`
 }
 
 // Reasons for passing on a request.

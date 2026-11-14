@@ -58,6 +58,8 @@ type orderBook struct {
 	chainTries int
 	// chainAt is when the order's latest chain attempt was posted (0: never in one).
 	chainAt int
+	// rushed: the car was posted once to arrive on the day it was ready (rush.go).
+	rushed bool
 	// trustCounted / trustLate: how the order entered its dealer's trust count.
 	trustCounted bool
 	trustLate    bool

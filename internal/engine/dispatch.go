@@ -29,7 +29,7 @@ func (e *Engine) dispatch(ob *orderBook) {
 			free = append(free, i)
 		}
 	}
-	if len(free) == 1 && e.tryChain(ob) {
+	if len(free) == 1 && !e.rushable(ob, free) && e.tryChain(ob) {
 		return
 	}
 	for _, group := range e.groupLegs(ob, free) {
@@ -126,6 +126,7 @@ const (
 	modeLate            // no on-time pickup left: the world's windows run to its end
 	modeDay             // real hours shorter than stated: both stops get one day's windows
 	modeChain           // two cars of two orders in one gig, for a limited time
+	modeRush            // a big dealer's car, to arrive today for its trust (rush.go)
 )
 
 // buffer is the minutes the delivery should arrive before the deadline, to absorb real driving times.
@@ -157,6 +158,7 @@ func (e *Engine) post(ob *orderBook, legs []int) {
 		plain = plain || ob.legs[i].plain
 	}
 	var dayPickup, dayDelivery api.TimeWindow
+	var rushDelivery *api.TimeWindow
 	dayOK := false
 	if ob.narrowed && !plain && len(legs) == 1 && legs[0] == 0 {
 		dayPickup, dayDelivery, g.dayLate, dayOK = e.dayWindows(ob, buffer)
@@ -171,6 +173,10 @@ func (e *Engine) post(ob *orderBook, legs []int) {
 		}
 	case lastPickup-buffer >= first && lastPickup-buffer-e.now > e.P.FinalMin:
 		g.mode, g.buffer = modeBuffered, buffer
+		if w, until := e.rushWindow(ob, legs, first, buffer); w != nil {
+			g.mode, g.bookableUntil, rushDelivery = modeRush, until, w
+			ob.rushed = true
+		}
 	case lastPickup >= first && lastPickup > e.now:
 		g.mode = modeTight
 	}
@@ -196,6 +202,8 @@ func (e *Engine) post(ob *orderBook, legs []int) {
 		case mode == modeDay:
 			pickup.Window, delivery.Window = &dayPickup, &dayDelivery
 		case plain:
+		case mode == modeRush:
+			delivery.Window = rushDelivery
 		case mode == modeBuffered:
 			delivery.Window = bufferedDelivery(leg, ob.deadlineOf(), buffer)
 		case mode == modeTight && ob.deadlineOf() < ob.order.Deadline:
@@ -338,6 +346,11 @@ func (e *Engine) planFor(g *gigBook, lastPickup int) []api.FeeStep {
 	case modeTight:
 		g.bookableUntil = lastPickup
 		return capSchedule([]api.FeeStep{{At: e.now, FeeCents: feeOf(g.base, p.FeeMax)}}, onTimeCap)
+	case modeRush:
+		// bookableUntil is the last pickup that still arrives today, set when the gig was
+		// posted. The fee creeps to the top of the hold by then and no further: after the
+		// rush the car still has all the time of its own deadline.
+		return capSchedule(stepsUntil(p.Schedule(e.now, g.bookableUntil+p.LeadMin, g.base), g.bookableUntil), onTimeCap)
 	case modeChain:
 		// bookableUntil is the end of the attempt, set when the chain was posted.
 		g.bookableUntil = g.chainUntil

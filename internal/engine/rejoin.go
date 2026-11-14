@@ -132,6 +132,13 @@ func (e *Engine) adoptGig(sg *api.Gig) {
 	case g.mode == modeDay, g.mode == modeChain:
 	case g.mode == modeBuffered:
 		g.bookableUntil = last - g.buffer
+		if g.buffer >= rushBufferMin {
+			// A delivery window that ends a day before the deadline is a rush gig (rush.go).
+			g.mode = modeRush
+			for _, ob := range e.ordersOf(g) {
+				ob.rushed = true
+			}
+		}
 	case last > e.now:
 		g.mode, g.bookableUntil = modeTight, last
 	}

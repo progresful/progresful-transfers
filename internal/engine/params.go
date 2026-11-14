@@ -170,6 +170,12 @@ type Params struct {
 	// TrustInvestRisk limits TrustInvest to requests whose modelled lateness risk is at or
 	// under it (0: every request).
 	TrustInvestRisk float64 `json:"trustInvestRisk"`
+	// TrustRush (rush.go): a car of a dealer that sends at least this share of all requests
+	// is posted to arrive on the day it is ready, while the dealer's trust can still grow
+	// (0: off). TrustRushMin is the least room in minutes between the first possible
+	// pickup and the last one that still arrives that day.
+	TrustRush    float64 `json:"trustRush"`
+	TrustRushMin int     `json:"trustRushMin"`
 	// ShareCap and ShareMarkup: the competitor cuts its prices for a dealer whose requests
 	// we mostly win. Above ShareCap of a dealer's requests won, quotes to it go up by
 	// ShareMarkup, to stay under the competitor's radar. ShareCap 1 turns it off.
@@ -240,6 +246,12 @@ type Params struct {
 	// modelled lateness risk of a request is multiplied by ThinRisk (0: off).
 	ThinRoster int     `json:"thinRoster"`
 	ThinRisk   float64 `json:"thinRisk"`
+	// Outage (outage.go) is the price of the dealers' backup over the competitor's price
+	// that the engine assumes while the competitor is down in a region (the handbook says
+	// about 1.3); 0 or 1 turns the watch off. OutagePrior is the odds of an outage in one
+	// region on one day before any answer.
+	Outage      float64 `json:"outage"`
+	OutagePrior float64 `json:"outagePrior"`
 	// Chains (level 3+, chains.go): Chains 1 puts two single-car orders in one gig when the
 	// second pickup is within ChainHopMin road minutes of the first delivery and both cars
 	// stay on time with at least ChainSlackMin minutes of room to start. The chain's fee is
@@ -384,6 +396,8 @@ func DefaultParams() Params {
 		LatePriceCap:   2.0,
 		LastLeadMin:    600,
 		BufferShare:    0.15,
+		OutagePrior:    0.05,
+		TrustRushMin:   120,
 		BufferMin:      15,
 		Chains:         0,
 		ChainTries:     1,

@@ -260,11 +260,13 @@ const shareMinRequests = 12
 // pendingQuote remembers what was quoted, to learn from the dealer's answer.
 type pendingQuote struct {
 	Dealer string  `json:"dealer"`
-	Place  string  `json:"place"` // pickup place of the first car
-	Day    int     `json:"day"`   // day the quote was made
-	Dest   string  `json:"dest"`  // delivery place of the first car
-	Level  float64 `json:"level"` // the market level the quote was priced against
-	Ratio  float64 `json:"ratio"` // quoted price over list price
+	Place  string  `json:"place"`           // pickup place of the first car
+	Day    int     `json:"day"`             // day the quote was made
+	Dest   string  `json:"dest"`            // delivery place of the first car
+	Level  float64 `json:"level"`           // the market level the quote was priced against
+	Ratio  float64 `json:"ratio"`           // quoted price over list price
+	Width  float64 `json:"width,omitempty"` // width of the win curve the quote was priced against
+	At     int     `json:"at,omitempty"`    // minute the quote was made
 }
 
 // marketStartFor is the first guess of the winning ratio at a level: the middle of the
@@ -295,10 +297,10 @@ func (e *Engine) onRequest(req *api.PriceRequest) {
 		// now would make the dealer's old answer look like an answer to this price.
 		return
 	}
-	e.why, e.whyRisk, e.whyCap = "", 0, 0
+	e.why, e.whyRisk, e.whyCap, e.whyDown, e.whyLvl = "", 0, 0, 0, 0
 	prices := e.pricesFor(req)
 	if !e.replay {
-		d := Decision{At: e.now, RequestID: req.ID, Risk: e.whyRisk, Cap: e.whyCap}
+		d := Decision{At: e.now, RequestID: req.ID, Risk: e.whyRisk, Cap: e.whyCap, Outage: e.whyDown, Level: e.whyLvl}
 		if len(prices) == 0 {
 			d.Why = e.why
 		}
@@ -410,12 +412,20 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 	d := e.market.dealer(req.DealerID)
 	place, dest, day := req.Legs[0].Pickup.PlaceID, req.Legs[0].Delivery.PlaceID, cal.DayOf(e.now)
 	level, width := e.priceLevel(req, d, day)
+	e.whyLvl = level
 	ratio := e.P.PriceMult
 	if e.P.Adaptive == 1 {
 		mult := e.costMultFor(req, ref) + e.P.RiskSlope*risk
 		cost := float64(req.ReferenceFeeCents)*mult*e.dayCost()*e.laneCost(req)*e.readyCost(req, ref) + risk*(e.P.RiskCost*list+e.P.TrustGuard*e.trustAtStake(d))
 		var chance float64
-		ratio, chance = bestRatioAt(level, width, cost/list, e.trustWorthFor(d, risk)/list, float64(floor)/list)
+		worth := e.trustWorthFor(d, risk) / list
+		ratio, chance = bestRatioAt(level, width, cost/list, worth, float64(floor)/list)
+		if e.outage != nil {
+			if down := e.outage.chance(place, e.now); down > 0 {
+				ratio, chance = outageRatio(down, e.P.Outage, level, width, cost/list, worth, float64(floor)/list)
+				e.whyDown = down
+			}
+		}
 		if chance < e.P.MinWinChance {
 			return 0 // the price that pays is far above what this dealer accepts
 		}
@@ -423,7 +433,7 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 	if d.requests >= shareMinRequests && float64(d.wins) > e.P.ShareCap*float64(d.requests) {
 		ratio *= 1 + e.P.ShareMarkup
 	}
-	e.quotes[req.ID] = pendingQuote{Dealer: req.DealerID, Place: place, Dest: dest, Day: day, Level: level, Ratio: math.Max(ratio, float64(floor)/list)}
+	e.quotes[req.ID] = pendingQuote{Dealer: req.DealerID, Place: place, Dest: dest, Day: day, Level: level, Ratio: math.Max(ratio, float64(floor)/list), Width: width, At: e.now}
 	return ratio
 }
 
@@ -515,6 +525,13 @@ func (e *Engine) onQuoteAnswer(requestID string, won bool) {
 	delete(e.quotes, requestID)
 	if b := e.market.beliefs; b != nil {
 		e.market.count(e.market.dealer(q.Dealer), won)
+		if e.outage != nil && q.Width > 0 {
+			e.outage.learn(q.Place, q.At, q.Level, q.Width, q.Ratio, won)
+			if e.outage.chance(q.Place, q.At) >= outageLearnBar {
+				// The dealer is on the backup: the answer says nothing about the competitor's prices.
+				return
+			}
+		}
 		b.learn(q, won)
 		return
 	}
