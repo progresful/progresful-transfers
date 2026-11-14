@@ -1,0 +1,5 @@
+.env
+/runs/
+/bin/
+*.test
+*.out

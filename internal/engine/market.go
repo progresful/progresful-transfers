@@ -1,0 +1,178 @@
+package engine
+
+import (
+	"math"
+
+	"highwaycoins/internal/cal"
+)
+
+const (
+	// maxTrust is the cap of a dealer's count of on-time orders (level 8).
+	maxTrust = 25
+	// trustStep is how much each counted order raises the prices the dealer accepts.
+	trustStep = 0.01
+	// levelTrust is the level at which dealers count on-time orders.
+	levelTrust = 8
+	// dayLocalWeight is how much faster today's dealer and region parts learn than the global one.
+	dayLocalWeight = 1.5
+	// ratioGrid is how many candidate prices the quoter compares for one request.
+	ratioGrid = 48
+	// requestDayStart and requestDayEnd bound the hours in which requests arrive.
+	requestDayStart = 8 * cal.Hour
+	requestDayEnd   = 18 * cal.Hour
+	requestDays     = 5
+)
+
+// dealerBook is what the engine has learned about one dealer.
+type dealerBook struct {
+	offset   float64 // learned shift of the dealer's accepted price level (log ratio)
+	requests int
+	quotes   int
+	wins     int
+	trust    int // orders delivered on time, halved by a late one (counts at level 8)
+}
+
+// dayBook holds what the market does today only: the competitor's day factor, a price
+// war (everywhere, 20% down) or an outage (one region on a dearer backup). None is
+// announced; each shows in the day's wins and losses, and is gone the next morning.
+type dayBook struct {
+	day    int
+	global float64
+	dealer map[string]float64
+	place  map[string]float64 // by pickup place; a quote teaches the places around it too
+}
+
+// market is the engine's running estimate of what dealers accept: the probability that
+// a quote at ratio r (price over list price) wins is logistic in log r around a level
+// made of a world part, a dealer part and the dealer's trust.
+type market struct {
+	mu      float64 // world level: log of the ratio at which a quote wins half the time
+	scale   float64 // width of the logistic in log-ratio
+	rate    float64 // learning rate of the world level
+	dRate   float64 // learning rate of a dealer's offset
+	trustOn bool
+	seen    int
+	dealers map[string]*dealerBook
+	// Today's fast-moving part, and how fast it learns (0: off).
+	today   dayBook
+	dayRate float64
+	// around lists the places that share a region with a place (itself included).
+	around func(place string) []string
+}
+
+func newMarket(p Params, level int) *market {
+	return &market{
+		mu:      math.Log(p.MarketStart),
+		scale:   p.MarketScale,
+		rate:    p.MarketRate,
+		dRate:   p.DealerRate,
+		trustOn: level >= levelTrust && p.TrustBoost > 0,
+		dealers: map[string]*dealerBook{},
+		today:   dayBook{day: -1, dealer: map[string]float64{}, place: map[string]float64{}},
+		dayRate: p.DayRate,
+		around:  func(place string) []string { return []string{place} },
+	}
+}
+
+func (m *market) dealer(id string) *dealerBook {
+	d := m.dealers[id]
+	if d == nil {
+		d = &dealerBook{}
+		m.dealers[id] = d
+	}
+	return d
+}
+
+// level is the log ratio at which a quote to this dealer wins half the time.
+func (m *market) level(d *dealerBook, trustBoost float64) float64 {
+	lvl := m.mu + d.offset
+	if m.trustOn {
+		lvl += trustBoost * math.Log(1+trustStep*float64(d.trust))
+	}
+	return lvl
+}
+
+// rollDay forgets yesterday's fast part when a new day starts.
+func (m *market) rollDay(day int) {
+	if day == m.today.day {
+		return
+	}
+	m.today = dayBook{day: day, dealer: map[string]float64{}, place: map[string]float64{}}
+}
+
+// todayShift is today's fast part of the level for a dealer's request from a pickup place.
+func (m *market) todayShift(dealerID, place string, day int) float64 {
+	if m.dayRate <= 0 {
+		return 0
+	}
+	m.rollDay(day)
+	return m.today.global + m.today.dealer[dealerID] + m.today.place[place]
+}
+
+// learnToday moves today's fast part by a quote's surprise: everywhere a little, and
+// more for the dealer and for the region of the pickup.
+func (m *market) learnToday(dealerID, place string, day int, surprise float64) {
+	if m.dayRate <= 0 || day != m.today.day {
+		return // an answer to yesterday's quote says nothing about today
+	}
+	m.today.global += surprise * m.dayRate
+	m.today.dealer[dealerID] += surprise * m.dayRate * dayLocalWeight
+	for _, p := range m.around(place) {
+		m.today.place[p] += surprise * m.dayRate * dayLocalWeight
+	}
+}
+
+func sigmoid(x float64) float64 { return 1 / (1 + math.Exp(-x)) }
+
+// winProb is the estimated chance that a quote at the ratio wins against the level.
+func (m *market) winProb(level, ratio float64) float64 {
+	return sigmoid((level - math.Log(ratio)) / m.scale)
+}
+
+// learn moves the world level and the dealer's offset towards what a quote's outcome shows,
+// and returns the surprise (outcome minus the chance it had). The steps shrink as evidence
+// comes in, but never to nothing: the competitor keeps moving.
+func (m *market) learn(d *dealerBook, level, ratio float64, won bool) float64 {
+	y := 0.0
+	if won {
+		y = 1
+	}
+	surprise := y - m.winProb(level, ratio)
+	m.seen++
+	d.quotes++
+	if won {
+		d.wins++
+	}
+	m.mu += surprise * math.Max(m.rate, 4*m.rate/math.Sqrt(float64(m.seen)))
+	d.offset += surprise * math.Max(m.dRate, 2*m.dRate/math.Sqrt(float64(d.quotes)))
+	return surprise
+}
+
+// bestRatio picks the price ratio with the highest expected gain for a request whose
+// cost is costRatio (cost over list price) and which is worth bonusRatio more when won.
+// It never goes under floorRatio. The second result is the chance to win at that ratio.
+func (m *market) bestRatio(level, costRatio, bonusRatio, floorRatio float64) (float64, float64) {
+	lo, hi := math.Exp(level-4*m.scale), math.Exp(level+3*m.scale)
+	best, bestGain := math.Max(floorRatio, hi), math.Inf(-1)
+	for k := 0; k <= ratioGrid; k++ {
+		r := lo + (hi-lo)*float64(k)/ratioGrid
+		if r < floorRatio {
+			continue
+		}
+		if gain := (r - costRatio + bonusRatio) * m.winProb(level, r); gain > bestGain {
+			best, bestGain = r, gain
+		}
+	}
+	return best, m.winProb(level, best)
+}
+
+// requestTimeLeft is the share of the week's request hours (Mon-Fri 08:00-18:00) still to come.
+func requestTimeLeft(now int) float64 {
+	day, minute := cal.DayOf(now), cal.MinuteOfDay(now)
+	if day >= requestDays {
+		return 0
+	}
+	span := float64(requestDayEnd - requestDayStart)
+	today := math.Max(0, math.Min(1, float64(requestDayEnd-minute)/span))
+	return (float64(requestDays-1-day) + today) / requestDays
+}
