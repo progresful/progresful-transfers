@@ -54,6 +54,11 @@ type Params struct {
 	// MinSlackMin declines an option when fewer minutes than this lie between the
 	// earliest pickup and the last pickup that is still on time.
 	MinSlackMin int `json:"minSlackMin"`
+	// MinLeadMin and MinLeadDrive decline an option when the minutes from the answer to
+	// the last on-time pickup are fewer than MinLeadMin + MinLeadDrive x the drive: a long
+	// drive with a few hours left finds its driver late, at a high fee. 0 and 0: off.
+	MinLeadMin   int     `json:"minLeadMin"`
+	MinLeadDrive float64 `json:"minLeadDrive"`
 	// MinSupply declines a request when fewer drivers than this live within the app's
 	// notification radius of the pickup or of the delivery (whichever has more). For a
 	// premium car only experienced drivers count, against MinExperienced.
@@ -63,6 +68,14 @@ type Params struct {
 	// declines them. In the shortage almost half arrived late: a driver needs a long free
 	// block around a fixed hour, and the fee ran to 1.4 times the typical one.
 	TradeIns int `json:"tradeIns"`
+	// SplitTradeIns 1 posts the two cars of a trade-in as two gigs even where one gig may
+	// carry both (level 3+): a combined trade-in needs a driver with a long free block
+	// around the customer's hour and proved hard to book.
+	SplitTradeIns int `json:"splitTradeIns"`
+	// RiskSlope adds risk x RiskSlope typical fees to the cost of an order: a steeper price
+	// for risky orders than RiskCost (which is in list prices), so a lower CostMult adds
+	// volume only where it is safe.
+	RiskSlope float64 `json:"riskSlope"`
 	// Premium 1 quotes premium cars (experienced drivers only); 0 declines them. In the
 	// shortage they arrived late almost one time in five and earned a third less.
 	Premium int `json:"premium"`
@@ -119,6 +132,10 @@ type Params struct {
 	// DayRate is how fast the market level follows the current day alone (per dealer and
 	// region too): the competitor's day factor, the price war and the outage. 0 turns it off.
 	DayRate float64 `json:"dayRate"`
+	// DestRate is how fast the level learns a shift of its own for each delivery place
+	// from the week's wins and losses (the part of a lane's price that is new in each
+	// world). 0: off.
+	DestRate float64 `json:"destRate"`
 	// LaneWeight is how much of the fitted lane price effects (lanes.go) the quote uses:
 	// 1 prices each lane against its own level, 0 one level for all lanes.
 	LaneWeight float64 `json:"laneWeight"`
@@ -184,11 +201,25 @@ type Params struct {
 	// stay on time with at least ChainSlackMin minutes of room to start. The chain's fee is
 	// ChainFeeShare of the two typical fees. If no driver takes it within ChainTryMin
 	// minutes, the cars are posted again one by one.
-	Chains        int     `json:"chains"`
+	Chains int `json:"chains"`
+	// ChainTries is how many chain attempts one order may be part of before it goes alone.
+	// ChainMaxCars is the most cars in one chain: an open chain with room takes one more.
+	ChainTries    int     `json:"chainTries"`
+	ChainMaxCars  int     `json:"chainMaxCars"`
 	ChainHopMin   int     `json:"chainHopMin"`
 	ChainSlackMin int     `json:"chainSlackMin"`
 	ChainTryMin   int     `json:"chainTryMin"`
 	ChainFeeShare float64 `json:"chainFeeShare"`
+	// ChainMinChance is the least chance of being booked (chains.go, chainChance) at which
+	// a chain is tried; with it the likeliest pairing wins instead of the shortest hop. 0: off.
+	ChainMinChance float64 `json:"chainMinChance"`
+	// SplitClock is how much of a failed chain attempt's time the cars keep on their fee
+	// clock when they go alone: 0 opens them at FeeStart again, 1 opens them at the fee a
+	// car posted alone at the start of the attempt would show now.
+	SplitClock float64 `json:"splitClock"`
+	// ChainCostGain lowers the cost a request is priced on when it would make a chain with
+	// an open gig: by ChainCostGain times the chance that the chain is booked. 0: off.
+	ChainCostGain float64 `json:"chainCostGain"`
 	// ChainOffers 1 sends a direct offer of an open gig to a driver who already holds one
 	// of our gigs that ends within ChainHopMin road minutes of its pickup, at a time that
 	// fits: for that driver the second car costs only the extra drive. The offer pays at
@@ -244,6 +275,8 @@ func DefaultParams() Params {
 		MinSlackMin:    120,
 		MinSupply:      0,
 		MinExperienced: 0,
+		SplitTradeIns:  0,
+		RiskSlope:      0,
 		Premium:        1,
 		TradeIns:       1,
 		RiskModel:      2,
@@ -299,6 +332,8 @@ func DefaultParams() Params {
 		BufferShare:    0.15,
 		BufferMin:      15,
 		Chains:         0,
+		ChainTries:     1,
+		ChainMaxCars:   2,
 		ChainHopMin:    70,
 		ChainSlackMin:  180,
 		ChainTryMin:    90,
@@ -329,8 +364,34 @@ func DefaultParamsFor(level int) Params {
 	p := DefaultParams()
 	switch {
 	case level < paramsQuoteLevel:
-		// Every quote wins at the list price: take what pays, drivers are plentiful.
+		// Every quote wins at the list price: take what pays, drivers are plentiful. What
+		// does not pay is a long drive with a few hours left: it finds its driver late and
+		// at a high fee (bench, level 1: +25 % margin, worst week 89.6 % -> 95.7 % on time).
 		p.CostMult = 0.8
+		p.MinLeadMin, p.MinLeadDrive = 180, 1
+		if level >= levelSchedules {
+			// Drivers learn how far our fees rise and wait for it: open near the fee
+			// where gigs book and rise slowly.
+			p.FeeStart, p.FeeStep = 0.75, 0.02
+		}
+		if level == levelSchedules {
+			// Level 2 holds at 0.9x before the deadline ramp (+3 % with the lead rule, +5 %
+			// without it); at levels 1 and 3 the hold at the typical fee earns more.
+			p.FeeMid = 0.9
+		}
+		if level >= levelNetwork {
+			// Gigs with several cars: chains of two orders, and a trade-in as two gigs. With
+			// drivers enough, an order whose chain found nobody is worth a second attempt.
+			p.Chains, p.SplitTradeIns, p.ChainTries = 1, 1, 2
+		}
+	case level < paramsShortageLevel:
+		// A competitor near the list price and drivers enough: the margin is thin, so the
+		// price may go down to a floor near the typical fee, and what is saved on fees
+		// (slow clock, chains, no tight long drives) is most of the margin.
+		p.FeeStart, p.FeeStep = 0.75, 0.02
+		p.MinLeadMin, p.MinLeadDrive = 180, 1
+		p.Chains, p.SplitTradeIns = 1, 1
+		p.FloorMult, p.CostMult = 0.85, 0.92
 	case level >= paramsShortageLevel:
 		// A third of the drivers: the typical fee often finds nobody, and every order
 		// taken uses up scarce driver time, so the cost of an order is well above its fee.
@@ -346,6 +407,12 @@ func DefaultParamsFor(level int) Params {
 		p.Chains = 1
 		p.RiskThursday = 0.8
 		p.RiskFriday = 0.6
+		if level == paramsShortageLevel {
+			// Level 7's competitor is only 12-38 % above the list price: the scarcity cost
+			// of level 8 prices us out of orders that drivers could still move. 1.15 earns
+			// the same within noise but its worst bench week is 93.8 % on time against 96.2 %.
+			p.CostMult = 1.22
+		}
 	}
 	return p
 }

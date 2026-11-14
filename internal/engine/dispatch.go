@@ -40,7 +40,7 @@ func (e *Engine) dispatch(ob *orderBook) {
 // groupLegs decides which cars of one order share a gig: a trade-in goes as one gig
 // from level 3 when its driving fits the 12-hour limit, else one gig per car.
 func (e *Engine) groupLegs(ob *orderBook, legs []int) [][]int {
-	if len(legs) == 2 && e.Level >= levelNetwork && e.tradeInDrive(ob) <= multiCarDriveLimit {
+	if len(legs) == 2 && e.Level >= levelNetwork && e.P.SplitTradeIns != 1 && e.tradeInDrive(ob) <= multiCarDriveLimit {
 		return [][]int{legs}
 	}
 	groups := make([][]int, 0, len(legs))
@@ -173,6 +173,9 @@ func (e *Engine) post(ob *orderBook, legs []int) {
 		g.mode = modeTight
 	}
 	mode := g.mode
+	if e.P.SplitClock > 0 && ob.chainAt > 0 && ob.chainAt < e.now {
+		g.clockFrom = e.now - int(e.P.SplitClock*float64(e.now-ob.chainAt))
+	}
 	g.plan = e.planFor(g, lastPickup)
 	g.shown = g.plan[0].FeeCents
 	audience := api.Audience{}
@@ -196,6 +199,16 @@ func (e *Engine) post(ob *orderBook, legs []int) {
 		case mode == modeTight && ob.deadlineOf() < ob.order.Deadline:
 			// The order's own window runs to its deadline; the note's is earlier.
 			delivery.Window = bufferedDelivery(leg, ob.deadlineOf(), 0)
+		}
+		if ob.narrowed && mode != modeDay && !plain && !leg.Pickup.PrivateAddress {
+			// The site keeps shorter hours than stated and no day window was found (the
+			// car is late, or its drive fits no single day): the pickup still carries a
+			// window inside the real hours of the next open day, or a driver who plans by
+			// the stated hours finds the site closed. When that day passes the gig leaves
+			// the app and the car is posted for the day after.
+			if w := e.realPickupWindow(leg, max(e.now, lb.notBefore, leg.Pickup.Window.From)); w != nil {
+				pickup.Window = w
+			}
 		}
 		stops = append(stops, pickup, delivery)
 	}
@@ -313,6 +326,9 @@ func (e *Engine) planFor(g *gigBook, lastPickup int) []api.FeeStep {
 	switch g.mode {
 	case modeBuffered:
 		g.bookableUntil = lastPickup - g.buffer
+		if g.clockFrom > 0 && g.clockFrom < e.now {
+			return capSchedule(fromNow(p.Schedule(g.clockFrom, g.bookableUntil, g.base), e.now), onTimeCap)
+		}
 		return capSchedule(p.Schedule(e.now, g.bookableUntil, g.base), onTimeCap)
 	case modeTight:
 		g.bookableUntil = lastPickup

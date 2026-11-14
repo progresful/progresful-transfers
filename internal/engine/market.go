@@ -58,19 +58,59 @@ type market struct {
 	dayRate float64
 	// around lists the places that share a region with a place (itself included).
 	around func(place string) []string
+	// dest is the learned shift of the level by delivery place: the part of a lane's price
+	// that is new in each world. destRate is how fast it learns (0: off).
+	dest     map[string]*destBook
+	destRate float64
+}
+
+// destBook is what the week's quotes have shown about one delivery place.
+type destBook struct {
+	offset float64
+	quotes int
+}
+
+// destShiftCap bounds a delivery place's learned shift (log ratio): a few unlucky quotes
+// must not price a place out.
+const destShiftCap = 0.25
+
+// destShift is the learned shift of the level for cars going to a place.
+func (m *market) destShift(place string) float64 {
+	if b := m.dest[place]; b != nil {
+		return b.offset
+	}
+	return 0
+}
+
+// learnDest moves a delivery place's shift by a quote's surprise; the steps shrink as
+// quotes for the place come in.
+func (m *market) learnDest(place string, surprise float64) {
+	if m.destRate <= 0 || place == "" {
+		return
+	}
+	b := m.dest[place]
+	if b == nil {
+		b = &destBook{}
+		m.dest[place] = b
+	}
+	b.quotes++
+	b.offset += surprise * math.Max(m.destRate, 3*m.destRate/math.Sqrt(float64(b.quotes)))
+	b.offset = math.Max(-destShiftCap, math.Min(destShiftCap, b.offset))
 }
 
 func newMarket(p Params, level int) *market {
 	return &market{
-		mu:      math.Log(p.MarketStart),
-		scale:   p.MarketScale,
-		rate:    p.MarketRate,
-		dRate:   p.DealerRate,
-		trustOn: level >= levelTrust && p.TrustBoost > 0,
-		dealers: map[string]*dealerBook{},
-		today:   dayBook{day: -1, dealer: map[string]float64{}, place: map[string]float64{}},
-		dayRate: p.DayRate,
-		around:  func(place string) []string { return []string{place} },
+		mu:       math.Log(p.MarketStart),
+		scale:    p.MarketScale,
+		rate:     p.MarketRate,
+		dRate:    p.DealerRate,
+		trustOn:  level >= levelTrust && p.TrustBoost > 0,
+		dealers:  map[string]*dealerBook{},
+		today:    dayBook{day: -1, dealer: map[string]float64{}, place: map[string]float64{}},
+		dayRate:  p.DayRate,
+		around:   func(place string) []string { return []string{place} },
+		dest:     map[string]*destBook{},
+		destRate: p.DestRate,
 	}
 }
 

@@ -19,5 +19,8 @@ if [ ! -f "$snapshot" ]; then
   printf '{"version":"%s","hash":"%s","builtAt":"%s"}\n' "$version" "$hash" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> runs/engines/builds.jsonl
 fi
 
-go build -ldflags "-X highwaycoins/internal/engine.SourceHash=${hash}" -o bin/hc ./cmd/hc
+# Build beside the target and rename: a rename leaves running copies of the old binary
+# alone, while writing over bin/hc in place gets them killed (macOS code signing).
+go build -ldflags "-X highwaycoins/internal/engine.SourceHash=${hash}" -o bin/hc.new ./cmd/hc
+mv -f bin/hc.new bin/hc
 echo "built bin/hc  engine ${version}  source ${hash}  snapshot ${snapshot}"

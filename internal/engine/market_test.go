@@ -156,3 +156,50 @@ func TestLaneShift(t *testing.T) {
 		t.Errorf("unweighted mean shift %.3f is far from zero", mean)
 	}
 }
+
+// The part of a lane's price that is new in each world shows in the week's own wins and
+// losses: a delivery place where quotes keep winning gets a higher level, one where they
+// keep losing a lower one, and other places are left alone.
+func TestDestinationShiftFollowsItsOwnOutcomes(t *testing.T) {
+	p := DefaultParamsFor(8)
+	p.DestRate = 0.02
+	m := newMarket(p, 8)
+	for i := 0; i < 20; i++ {
+		m.learnDest("kemi", 0.6)    // won although the model gave it 40 %
+		m.learnDest("vantaa", -0.6) // lost although the model gave it 60 %
+	}
+	if up, down, other := m.destShift("kemi"), m.destShift("vantaa"), m.destShift("oulu"); up <= 0.05 || down >= -0.05 || other != 0 {
+		t.Errorf("shifts: kemi %.3f (want up), vantaa %.3f (want down), oulu %.3f (want 0)", up, down, other)
+	}
+	if s := m.destShift("kemi"); s > destShiftCap {
+		t.Errorf("a shift is capped at %.2f, got %.3f", destShiftCap, s)
+	}
+	off := newMarket(DefaultParamsFor(8), 8)
+	off.learnDest("kemi", 0.6)
+	if off.destShift("kemi") != 0 {
+		t.Error("switched off, nothing is learned")
+	}
+}
+
+// What the week taught about delivery places survives a restart.
+func TestSavedStateKeepsDestinationShifts(t *testing.T) {
+	p := DefaultParamsFor(8)
+	p.DestRate = 0.02
+	e := New(8, p, testMap(t))
+	e.market.learnDest("b", 0.5)
+	e.market.learnDest("b", 0.5)
+	path := t.TempDir() + "/state.json"
+	if err := e.SaveState(path); err != nil {
+		t.Fatal(err)
+	}
+	fresh := New(8, p, testMap(t))
+	if err := fresh.LoadState(path); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := fresh.market.destShift("b"), e.market.destShift("b"); got != want || want == 0 {
+		t.Errorf("restored shift %.4f, want %.4f (not zero)", got, want)
+	}
+	if fresh.market.dest["b"].quotes != 2 {
+		t.Errorf("restored quote count %d, want 2", fresh.market.dest["b"].quotes)
+	}
+}

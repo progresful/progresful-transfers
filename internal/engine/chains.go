@@ -1,27 +1,88 @@
 package engine
 
 import (
+	"math"
+
 	"highwaycoins/internal/api"
 	"highwaycoins/internal/cal"
 )
 
-// Chains: two cars of two orders in one gig, the second collected near where the first
-// is delivered. The driver saves the trip home after the first car and the trip out to
-// the second, so one driver moves two cars: more cars per driver, which is what the
+// Chains: the cars of two (or more) orders in one gig, each collected near where the one
+// before is delivered. The driver saves the trip home after one car and the trip out to
+// the next, so one driver moves several cars: more cars per driver, which is what the
 // shortage is short of. A chain is only an attempt: if no driver takes it within
 // ChainTryMin minutes it is split back into two gigs, while both cars still have time.
 
-// chainPlan is a feasible chain of two single-car orders.
+// chainPlan is a feasible chain: orders in the order their cars are moved.
 type chainPlan struct {
-	first, second *orderBook
-	startBy       int // last minute to collect the first car and still be on time with both
-	hop           int // road minutes from the first delivery to the second pickup
+	orders  []*orderBook
+	startBy int // last minute to collect the first car and still be on time with every car
+	hop     int // road minutes of the hops between the cars
+	drive   int // road minutes with a car
+	chance  float64
+}
+
+// The chance that a driver books a chain within its attempt, fitted on 3,545 chain
+// attempts of e10 weeks (logistic; AUC 0.79 on held-out worlds, well calibrated). A chain
+// that ends near where it started is a round trip for a driver; a long one-way pair is
+// booked one time in five.
+const (
+	chainBias       = 2.4931
+	chainPerDriveH  = -0.0844 // hours at the wheel
+	chainPerBackH   = -0.3622 // road hours from the last delivery back to the first pickup
+	chainPerHopH    = -0.0472
+	chainToday      = -0.7645 // the first car is ready today
+	chainPerAgeH    = -0.1678 // hours the older order has waited
+	chainThursday   = -0.3120
+	chainFriday     = -0.7091
+	chainMonday     = 0.8321
+	chainEndDrivers = 0.1248 // per log(1 + drivers living within 30 km of the last delivery)
+	chainBackCapMin = 480
+	chainAgeCapMin  = 240
+)
+
+// chainChanceOf is the model itself; weekday is 0 (Monday) to 6.
+func chainChanceOf(driveMin, backMin, hopMin int, today bool, ageMin, weekday, endDrivers int) float64 {
+	x := chainBias + chainPerDriveH*float64(driveMin)/cal.Hour + chainPerBackH*float64(min(backMin, chainBackCapMin))/cal.Hour +
+		chainPerHopH*float64(hopMin)/cal.Hour + chainPerAgeH*float64(min(max(ageMin, 0), chainAgeCapMin))/cal.Hour +
+		chainEndDrivers*math.Log1p(float64(endDrivers))
+	if today {
+		x += chainToday
+	}
+	switch weekday {
+	case 0:
+		x += chainMonday
+	case 3:
+		x += chainThursday
+	case fridayIndex:
+		x += chainFriday
+	}
+	return sigmoid(x)
+}
+
+// chainChance is the chance that a planned chain finds a driver within its attempt.
+func (e *Engine) chainChance(plan chainPlan) float64 {
+	first, last := plan.orders[0], plan.orders[len(plan.orders)-1]
+	start, end := first.order.Legs[0].Pickup, last.order.Legs[0].Delivery.PlaceID
+	oldest := e.now
+	for _, ob := range plan.orders {
+		oldest = min(oldest, ob.wonAt)
+	}
+	today := cal.DayOf(start.Window.From) <= cal.DayOf(e.now)
+	return chainChanceOf(plan.drive, e.Map.Minutes(end, start.PlaceID), plan.hop, today, e.now-oldest,
+		cal.Weekday(cal.DayOf(e.now)), e.driversNear(end, false))
 }
 
 // chainable reports whether an order may go into a chain: one car, not yet collected, no
-// special handling, and not already tried in a chain.
+// special handling, and chain attempts left.
 func (e *Engine) chainable(ob *orderBook) bool {
-	if ob.cancelled || len(ob.legs) != 1 || ob.noChain || ob.narrowed {
+	return ob.chainTries < e.P.ChainTries && e.chainFit(ob)
+}
+
+// chainFit is chainable without the limit on attempts: an order that is already in an
+// open chain may stay in it when the chain grows.
+func (e *Engine) chainFit(ob *orderBook) bool {
+	if ob.cancelled || len(ob.legs) != 1 || ob.narrowed {
 		return false
 	}
 	lb := &ob.legs[0]
@@ -29,86 +90,175 @@ func (e *Engine) chainable(ob *orderBook) bool {
 	return !lb.delivered && !lb.pickedUp && !lb.plain && !leg.Car.Premium && !leg.Pickup.PrivateAddress && !leg.Delivery.PrivateAddress
 }
 
-// planChain checks whether first then second can go as one gig with both cars on time,
-// and returns the plan.
-func (e *Engine) planChain(first, second *orderBook) (chainPlan, bool) {
-	a, b := &first.order.Legs[0], &second.order.Legs[0]
-	hop := e.Map.Minutes(a.Delivery.PlaceID, b.Pickup.PlaceID)
-	driveA, driveB := e.driveMin(a), e.driveMin(b)
-	if hop > e.P.ChainHopMin || driveA+hop+driveB > multiCarDriveLimit {
-		return chainPlan{}, false
+// chainTimes is the timing of a chain of single-car orders, each car collected and
+// delivered before the next one.
+type chainTimes struct {
+	start   int // earliest minute to collect the first car (no car is reached before it is ready)
+	startBy int // last minute to collect the first car and still be on time with every car
+	hops    int // road minutes between the cars
+	maxHop  int // the longest of those hops
+	drive   int // road minutes with a car
+}
+
+func (e *Engine) chainTimes(seq []*orderBook) chainTimes {
+	t := chainTimes{start: e.now, startBy: e.endsAt}
+	offset := 0 // minutes from the first pickup to the pickup of the current car
+	for i, ob := range seq {
+		leg := &ob.order.Legs[0]
+		if i > 0 {
+			hop := e.Map.Minutes(seq[i-1].order.Legs[0].Delivery.PlaceID, leg.Pickup.PlaceID)
+			offset += hop
+			t.hops += hop
+			t.maxHop = max(t.maxHop, hop)
+		}
+		ready := earliestPickup(leg, max(e.now, ob.legs[0].notBefore))
+		last := e.lastPickupOf(ob, []int{0}) - e.buffer(ob, []int{0})
+		// The driver leaves so as to reach each car when it is ready, not before.
+		t.start = max(t.start, ready-offset)
+		t.startBy = min(t.startBy, last-offset)
+		d := e.driveMin(leg)
+		offset += d
+		t.drive += d
 	}
-	lastA := e.lastPickupOf(first, []int{0}) - e.buffer(first, []int{0})
-	lastB := e.lastPickupOf(second, []int{0}) - e.buffer(second, []int{0})
-	readyA := earliestPickup(a, max(e.now, first.legs[0].notBefore))
-	readyB := earliestPickup(b, max(e.now, second.legs[0].notBefore))
-	// The driver leaves so as to reach the second car when it is ready, not before.
-	start := max(readyA, readyB-driveA-hop)
-	startBy := min(lastA, lastB-driveA-hop)
-	if startBy-start < e.P.ChainSlackMin {
+	return t
+}
+
+// planChain checks whether the orders can go as one gig, in this order, with every car on
+// time, and returns the plan.
+func (e *Engine) planChain(seq []*orderBook) (chainPlan, bool) {
+	t := e.chainTimes(seq)
+	if t.maxHop > e.P.ChainHopMin || t.drive+t.hops > multiCarDriveLimit || t.startBy-t.start < e.P.ChainSlackMin {
 		return chainPlan{}, false
 	}
 	// The first car must be collected while its site is open on the way to that plan.
-	if cal.NextOpen(a.Pickup.Hours, start) > startBy {
+	if cal.NextOpen(seq[0].order.Legs[0].Pickup.Hours, t.start) > t.startBy {
 		return chainPlan{}, false
 	}
-	return chainPlan{first: first, second: second, startBy: startBy, hop: hop}, true
+	return chainPlan{orders: seq, startBy: t.startBy, hop: t.hops, drive: t.drive}, true
 }
 
-// findChain looks for an open single-car gig that the order can be chained with, in either
-// order, and returns the tightest pairing (the shortest hop).
-func (e *Engine) findChain(ob *orderBook) (chainPlan, *gigBook, bool) {
+// isChain reports whether a gig carries the single cars of more than one order.
+func (e *Engine) isChain(g *gigBook) bool {
+	if len(g.legs) < 2 {
+		return false
+	}
+	for _, ref := range g.legs {
+		ob := e.orders[ref.orderID]
+		if ob == nil || ref.leg != 0 || len(ob.legs) != 1 || ref.orderID == g.legs[0].orderID && ref != g.legs[0] {
+			return false
+		}
+	}
+	return true
+}
+
+// adoptChain takes a chain found in the world after a restart: it stays an attempt that
+// ends ChainTryMin after it was posted, and its orders have had their attempt.
+func (e *Engine) adoptChain(g *gigBook) {
+	seq := make([]*orderBook, 0, len(g.legs))
+	for _, ref := range g.legs {
+		ob := e.orders[ref.orderID]
+		ob.chainTries = max(ob.chainTries, 1)
+		seq = append(seq, ob)
+	}
+	g.mode = modeChain
+	g.base = int(float64(g.base) * e.P.ChainFeeShare)
+	g.chainLast = e.chainTimes(seq).startBy
+	g.chainUntil = max(1, min(g.chainLast, g.postedAt+e.P.ChainTryMin))
+	g.bookableUntil = g.chainUntil
+}
+
+// ordersOf lists the orders of an open gig in the order of its cars, or nil when one of
+// them cannot be in a chain.
+func (e *Engine) ordersOf(g *gigBook) []*orderBook {
+	out := make([]*orderBook, 0, len(g.legs))
+	for _, ref := range g.legs {
+		ob := e.orders[ref.orderID]
+		if ob == nil || ob.urgent || !e.chainFit(ob) || (g.mode != modeChain && !e.chainable(ob)) {
+			return nil
+		}
+		out = append(out, ob)
+	}
+	return out
+}
+
+// findChain looks for an open gig that the order can be chained with: a single car, or a
+// chain that still has room. The order goes before or after the gig's cars; the pairing
+// with the shortest hops wins.
+func (e *Engine) findChain(ob *orderBook) (plan chainPlan, partner *gigBook, ok, skipped bool) {
 	var best chainPlan
 	var bestGig *gigBook
 	found := false
 	for _, g := range e.openGigs() {
-		if g.mode != modeBuffered || len(g.legs) != 1 || g.legs[0].orderID == ob.order.ID {
+		single := g.mode == modeBuffered && len(g.legs) == 1
+		grows := g.mode == modeChain && len(g.legs) < e.P.ChainMaxCars
+		if (!single && !grows) || g.carries(legRef{orderID: ob.order.ID, leg: 0}) {
 			continue
 		}
-		other := e.orders[g.legs[0].orderID]
-		if other == nil || !e.chainable(other) || other.urgent {
+		others := e.ordersOf(g)
+		if len(others) == 0 {
 			continue
 		}
-		for _, pair := range [2][2]*orderBook{{ob, other}, {other, ob}} {
-			plan, ok := e.planChain(pair[0], pair[1])
-			if ok && (!found || plan.hop < best.hop) {
+		before := append([]*orderBook{ob}, others...)
+		after := append(append([]*orderBook{}, others...), ob)
+		for _, seq := range [][]*orderBook{before, after} {
+			plan, ok := e.planChain(seq)
+			if !ok {
+				continue
+			}
+			if e.P.ChainMinChance > 0 {
+				// Only a chain that a driver is likely to take is worth the wait; the likeliest wins.
+				if plan.chance = e.chainChance(plan); plan.chance < e.P.ChainMinChance {
+					skipped = true
+					continue
+				}
+				if !found || plan.chance > best.chance {
+					best, bestGig, found = plan, g, true
+				}
+				continue
+			}
+			if !found || plan.hop < best.hop {
 				best, bestGig, found = plan, g, true
 			}
 		}
 	}
-	return best, bestGig, found
+	return best, bestGig, found, skipped && !found
 }
 
-// tryChain posts the order in a chain with an open gig's car when one fits. It reports
+// tryChain posts the order in a chain with an open gig's cars when one fits. It reports
 // whether it did; if not, the order is posted on its own as usual.
 func (e *Engine) tryChain(ob *orderBook) bool {
 	if e.P.Chains != 1 || e.Level < levelNetwork || !e.chainable(ob) || ob.urgent {
 		return false
 	}
-	plan, partner, ok := e.findChain(ob)
+	plan, partner, ok, skipped := e.findChain(ob)
+	if skipped {
+		e.stats.ChainsSkipped++
+	}
 	if !ok {
 		return false
 	}
-	// The partner's own gig leaves the app; both cars go into the chain.
+	// The partner gig leaves the app; all its cars go into the new chain.
 	partner.status = gigWithdrawn
 	e.send(api.Action{Type: api.ActWithdraw, GigID: partner.id}, nil)
 	e.postChain(plan)
 	return true
 }
 
-// postChain puts a two-car gig in the app: first car out and delivered, then the second.
+// postChain puts a chain in the app: each car collected and delivered, then the next.
 func (e *Engine) postChain(plan chainPlan) {
-	orders := [2]*orderBook{plan.first, plan.second}
 	g := &gigBook{status: gigPending, postedAt: e.now, mode: modeChain}
 	audience := api.Audience{}
-	stops := make([]api.StopRef, 0, 4)
-	for _, ob := range orders {
+	stops := make([]api.StopRef, 0, 2*len(plan.orders))
+	for _, ob := range plan.orders {
 		leg, lb := &ob.order.Legs[0], &ob.legs[0]
 		buffer := e.buffer(ob, []int{0})
 		g.legs = append(g.legs, legRef{orderID: ob.order.ID, leg: 0})
 		g.base += e.baseFee(ob, []int{0})
 		lb.gig = g
-		ob.noChain = true // one attempt per order: after this it goes alone
+		ob.chainTries++ // after ChainTries attempts the order goes alone
+		if ob.chainAt == 0 {
+			ob.chainAt = e.now // the first attempt: a later one does not reset the car's wait
+		}
 		audience.ManualLicence = audience.ManualLicence || lb.needManual
 		pickup := api.StopRef{OrderID: ob.order.ID, Leg: 0, Kind: stopPickup, WithPlates: lb.needPlates, WithCharging: e.needsCharging(leg)}
 		pickup.Window = e.retryWindow(leg, lb, false)
@@ -116,7 +266,7 @@ func (e *Engine) postChain(plan chainPlan) {
 		stops = append(stops, pickup, delivery)
 	}
 	g.base = int(float64(g.base) * e.P.ChainFeeShare)
-	// The attempt ends early enough for both cars to find a driver on their own.
+	// The attempt ends early enough for every car to find a driver on its own.
 	g.chainLast = plan.startBy
 	g.chainUntil = min(plan.startBy, e.now+e.P.ChainTryMin)
 	g.plan = e.planFor(g, plan.startBy)
@@ -124,6 +274,9 @@ func (e *Engine) postChain(plan chainPlan) {
 	g.post = api.Action{Type: api.ActPost, Stops: stops, Audience: &audience, Schedule: e.visible(g.plan)}
 	e.stats.Posts++
 	e.stats.Chains++
+	if len(plan.orders) > 2 {
+		e.stats.LongChains++
+	}
 	e.send(g.post, func(res api.ActionResult) { e.postedChain(g, res) })
 }
 
@@ -152,4 +305,45 @@ func (e *Engine) postedChain(g *gigBook, res api.ActionResult) {
 	e.stats.PostFailures++
 	e.logf("chain refused (%s); its cars go alone", res.Reason)
 	e.freeLegs(g)
+}
+
+// ghostOrder is the order a request would become if it were won now with the option. It
+// is for planning only and never enters the books.
+func (e *Engine) ghostOrder(req *api.PriceRequest, opt api.DeliveryOption) *orderBook {
+	legs := make([]api.Leg, len(req.Legs))
+	copy(legs, req.Legs)
+	for i := range legs {
+		// An order's windows end at the won option's deadline.
+		if !legs[i].Pickup.PrivateAddress {
+			legs[i].Pickup.Window.To = opt.Deadline
+		}
+		if !legs[i].Delivery.PrivateAddress {
+			legs[i].Delivery.Window.To = opt.Deadline
+		}
+	}
+	order := api.Order{ID: req.ID, DealerID: req.DealerID, Option: opt.Kind, Deadline: opt.Deadline, Legs: legs,
+		DeliveredAt: make([]*int, len(legs)), LastPickupAt: e.latestPickup(&legs[0], opt.Deadline)}
+	ob := &orderBook{order: order, req: req, legs: make([]legBook, len(legs)), wonAt: e.now}
+	e.applyFacts(ob)
+	return ob
+}
+
+// chainProspect is the chance that the request, won now with the option, goes into a
+// chain that a driver takes: 0 when no open gig fits.
+func (e *Engine) chainProspect(req *api.PriceRequest, opt api.DeliveryOption) float64 {
+	if e.P.Chains != 1 || e.Level < levelNetwork || len(req.Legs) != 1 {
+		return 0
+	}
+	ghost := e.ghostOrder(req, opt)
+	if !e.chainable(ghost) {
+		return 0
+	}
+	plan, _, ok, _ := e.findChain(ghost)
+	if !ok {
+		return 0
+	}
+	if plan.chance == 0 {
+		plan.chance = e.chainChance(plan)
+	}
+	return plan.chance
 }

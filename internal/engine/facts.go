@@ -86,8 +86,55 @@ func (e *Engine) noteRefusal(req *api.PriceRequest) string {
 		return ""
 	case e.P.NoteHours != 1 || len(req.Legs) > 1 || leg.Pickup.PrivateAddress || leg.Delivery.PrivateAddress:
 		return "shorter hours"
+	case !e.dayFits(req):
+		// No day's real hours take both the pickup and the delivery (a drive of most of
+		// a day): day windows cannot protect it, and a driver who plans by the stated
+		// hours finds the site closed.
+		return "shorter hours"
 	}
 	return ""
+}
+
+// scanDays is how many days ahead a search for real opening hours looks.
+const scanDays = 8
+
+// dayFits reports whether a car whose sites keep shorter hours than stated can be
+// collected and delivered inside the real hours of one day, with the delivery buffer.
+func (e *Engine) dayFits(req *api.PriceRequest) bool {
+	leg := e.realLeg(req)
+	drive := e.driveMin(leg)
+	buffer := max(e.P.BufferMin, int(e.P.BufferShare*float64(drive)))
+	first := cal.DayOf(e.now)
+	for day := first; day < first+scanDays; day++ {
+		pickOpens, pickCloses, pickOK := cal.HoursOn(leg.Pickup.Hours, day)
+		delOpens, delCloses, delOK := cal.HoursOn(leg.Delivery.Hours, day)
+		if !pickOK || !delOK {
+			continue
+		}
+		from := max(pickOpens, delOpens-drive)
+		to := min(pickCloses, delCloses-buffer-drive)
+		if to-from >= dayRoomMin {
+			return true
+		}
+	}
+	return false
+}
+
+// realPickupWindow is a pickup window inside the hours the site really keeps: from the
+// first real opening at or after from to that day's real closing. Nil when none is left.
+func (e *Engine) realPickupWindow(leg *api.Leg, from int) *api.TimeWindow {
+	for try := 0; try < scanDays; try++ {
+		open := cal.NextOpen(leg.Pickup.Hours, from)
+		if open < 0 || open >= e.endsAt {
+			return nil
+		}
+		day := cal.DayOf(open)
+		if _, closes, ok := cal.HoursOn(leg.Pickup.Hours, day); ok && cal.At(day, closes)-open >= dayRoomMin {
+			return &api.TimeWindow{From: open, To: min(cal.At(day, closes), e.endsAt)}
+		}
+		from = cal.At(day+1, 0)
+	}
+	return nil
 }
 
 // shiftBusinessDays moves a deadline by whole days, landing on a business day and not

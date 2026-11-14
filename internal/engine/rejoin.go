@@ -122,8 +122,12 @@ func (e *Engine) adoptGig(sg *api.Gig) {
 	if len(g.plan) == 0 {
 		g.plan = []api.FeeStep{{At: e.now, FeeCents: max(minFeeCents, sg.FeeCents)}}
 	}
+	if e.P.Chains == 1 && g.status == gigOpen && e.isChain(g) {
+		// Only an open chain is still an attempt; one a driver holds is just a booked gig.
+		e.adoptChain(g)
+	}
 	switch last := e.lastPickupOfGig(g); {
-	case g.mode == modeDay:
+	case g.mode == modeDay, g.mode == modeChain:
 	case g.mode == modeBuffered:
 		g.bookableUntil = last - g.buffer
 	case last > e.now:
@@ -153,6 +157,12 @@ type savedState struct {
 	Seen    int                     `json:"seen"`
 	Dealers map[string]savedDealer  `json:"dealers"`
 	Quotes  map[string]pendingQuote `json:"quotes"`
+	Dest    map[string]savedDest    `json:"dest,omitempty"`
+}
+
+type savedDest struct {
+	Offset float64 `json:"offset"`
+	Quotes int     `json:"quotes"`
 }
 
 type savedDealer struct {
@@ -166,6 +176,12 @@ func (e *Engine) SaveState(path string) error {
 	state := savedState{Mu: e.market.mu, Seen: e.market.seen, Dealers: map[string]savedDealer{}, Quotes: e.quotes}
 	for id, d := range e.market.dealers {
 		state.Dealers[id] = savedDealer{Offset: d.offset, Quotes: d.quotes, Wins: d.wins}
+	}
+	if len(e.market.dest) > 0 {
+		state.Dest = map[string]savedDest{}
+		for place, b := range e.market.dest {
+			state.Dest[place] = savedDest{Offset: b.offset, Quotes: b.quotes}
+		}
 	}
 	data, err := json.Marshal(state)
 	if err != nil {
@@ -201,6 +217,9 @@ func (e *Engine) LoadState(path string) error {
 	}
 	for id, q := range state.Quotes {
 		e.quotes[id] = q
+	}
+	for place, sd := range state.Dest {
+		e.market.dest[place] = &destBook{offset: sd.Offset, quotes: sd.Quotes}
 	}
 	return nil
 }

@@ -64,7 +64,7 @@ func legDeadline(leg *api.Leg, deadline int) int {
 // car arrives. In one gig its booked slot limits nothing (RULES.md, Gigs), so only the
 // car before it decides whether the order can be on time.
 func (e *Engine) sameVisit(legs []api.Leg, i int) bool {
-	if i == 0 || i >= len(legs) || e.Level < levelNetwork {
+	if i == 0 || i >= len(legs) || e.Level < levelNetwork || e.P.SplitTradeIns == 1 {
 		return false
 	}
 	prev, leg := &legs[i-1], &legs[i]
@@ -113,6 +113,22 @@ func (e *Engine) slack(req *api.PriceRequest, opt api.DeliveryOption) int {
 		worst = min(worst, e.latestPickup(leg, by)-buffer-earliestPickup(leg, from))
 	}
 	return worst
+}
+
+// lead is the minutes from the dealer's answer to the last pickup of the first car that
+// is still on time with the option: the time there is to find a driver.
+func (e *Engine) lead(req *api.PriceRequest, opt api.DeliveryOption) int {
+	_, deadline := e.effective(req, opt)
+	return e.latestPickup(e.realLeg(req), deadline) - max(req.RespondBy, e.now)
+}
+
+// shortLead reports whether the option leaves too little lead for its drive.
+func (e *Engine) shortLead(req *api.PriceRequest, opt api.DeliveryOption) bool {
+	if e.P.MinLeadMin <= 0 && e.P.MinLeadDrive <= 0 {
+		return false
+	}
+	need := float64(e.P.MinLeadMin) + e.P.MinLeadDrive*float64(e.driveMin(e.realLeg(req)))
+	return float64(e.lead(req, opt)) < need
 }
 
 // supply counts the drivers who hear of a gig or find it on their way home: those living
@@ -243,6 +259,7 @@ type pendingQuote struct {
 	Dealer string  `json:"dealer"`
 	Place  string  `json:"place"` // pickup place of the first car
 	Day    int     `json:"day"`   // day the quote was made
+	Dest   string  `json:"dest"`  // delivery place of the first car
 	Level  float64 `json:"level"` // the market level the quote was priced against
 	Ratio  float64 `json:"ratio"` // quoted price over list price
 }
@@ -306,7 +323,7 @@ func (e *Engine) pricesFor(req *api.PriceRequest) map[string]int {
 	if e.Level < levelQuotes {
 		// The dealer ignores the price and takes the first option at its list price.
 		first := req.Options[0]
-		if first.ListPriceCents < floor || e.slack(req, first) < e.P.MinSlackMin {
+		if first.ListPriceCents < floor || e.slack(req, first) < e.P.MinSlackMin || e.shortLead(req, first) {
 			return nil
 		}
 		return map[string]int{first.Kind: first.ListPriceCents}
@@ -314,7 +331,7 @@ func (e *Engine) pricesFor(req *api.PriceRequest) map[string]int {
 	var offered []api.DeliveryOption
 	risk, riskCap := 0.0, e.riskCap(e.market.dealer(req.DealerID))
 	for _, opt := range req.Options {
-		if e.slack(req, opt) < e.P.MinSlackMin {
+		if e.slack(req, opt) < e.P.MinSlackMin || e.shortLead(req, opt) {
 			continue
 		}
 		r := e.lateRisk(req, opt)
@@ -357,15 +374,12 @@ func (e *Engine) pricesFor(req *api.PriceRequest) map[string]int {
 func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor int, risk float64) float64 {
 	list := float64(ref.ListPriceCents)
 	d := e.market.dealer(req.DealerID)
-	place, day := req.Legs[0].Pickup.PlaceID, cal.DayOf(e.now)
+	place, dest, day := req.Legs[0].Pickup.PlaceID, req.Legs[0].Delivery.PlaceID, cal.DayOf(e.now)
 	level := e.market.level(d, e.P.TrustBoost) + e.market.todayShift(req.DealerID, place, day) +
-		e.P.LaneWeight*laneShift(place, req.Legs[0].Delivery.PlaceID)
+		e.P.LaneWeight*laneShift(place, dest) + e.market.destShift(dest)
 	ratio := e.P.PriceMult
 	if e.P.Adaptive == 1 {
-		mult := e.costMult()
-		if e.P.CostByGig == 1 && e.Level >= levelRiskTrained {
-			mult = e.expectedFeeMult(&req.Legs[0], req.RespondBy, ref.Kind) + e.P.CostSpread
-		}
+		mult := e.costMultFor(req, ref) + e.P.RiskSlope*risk
 		cost := float64(req.ReferenceFeeCents)*mult*e.dayCost()*e.laneCost(req)*e.readyCost(req, ref) + risk*(e.P.RiskCost*list+e.P.TrustGuard*e.trustAtStake(d))
 		var chance float64
 		ratio, chance = e.market.bestRatio(level, cost/list, e.trustWorth(d)/list, float64(floor)/list)
@@ -376,8 +390,24 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 	if d.requests >= shareMinRequests && float64(d.wins) > e.P.ShareCap*float64(d.requests) {
 		ratio *= 1 + e.P.ShareMarkup
 	}
-	e.quotes[req.ID] = pendingQuote{Dealer: req.DealerID, Place: place, Day: day, Level: level, Ratio: math.Max(ratio, float64(floor)/list)}
+	e.quotes[req.ID] = pendingQuote{Dealer: req.DealerID, Place: place, Dest: dest, Day: day, Level: level, Ratio: math.Max(ratio, float64(floor)/list)}
 	return ratio
+}
+
+// costMultFor is the cost of carrying a request as a multiple of its typical fee: the
+// day's scarcity cost, less for a request that would share a driver with an open car.
+func (e *Engine) costMultFor(req *api.PriceRequest, ref api.DeliveryOption) float64 {
+	mult := e.costMult()
+	if e.P.CostByGig == 1 && e.Level >= levelRiskTrained {
+		mult = e.expectedFeeMult(&req.Legs[0], req.RespondBy, ref.Kind) + e.P.CostSpread
+	}
+	if e.P.ChainCostGain > 0 {
+		if prospect := e.chainProspect(req, ref); prospect > 0 {
+			e.stats.ChainProspects++
+			mult -= e.P.ChainCostGain * prospect
+		}
+	}
+	return mult
 }
 
 // trustWorth is the extra worth (cents) of winning an order from a dealer whose trust can
@@ -429,4 +459,5 @@ func (e *Engine) onQuoteAnswer(requestID string, won bool) {
 	delete(e.quotes, requestID)
 	surprise := e.market.learn(e.market.dealer(q.Dealer), q.Level, q.Ratio, won)
 	e.market.learnToday(q.Dealer, q.Place, q.Day, surprise)
+	e.market.learnDest(q.Dest, surprise)
 }

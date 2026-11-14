@@ -120,7 +120,16 @@ func cmdBoard(ctx context.Context, args []string) error {
 	return nil
 }
 
-func cmdWorlds(ctx context.Context, _ []string) error {
+// worldKindPractice is the only kind of world that may be deleted: deleting a ranking run
+// plays it to its end, and it still counts.
+const worldKindPractice = "practice"
+
+func cmdWorlds(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("worlds", flag.ContinueOnError)
+	clean := fs.Bool("clean", false, "delete the unfinished practice worlds left by a killed run (never a ranking run); stop running sweeps first")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	s, err := connect(ctx)
 	if err != nil {
 		return err
@@ -131,10 +140,20 @@ func cmdWorlds(ctx context.Context, _ []string) error {
 	}
 	open := 0
 	for _, w := range worlds {
-		if !w.Ended {
-			open++
-			fmt.Printf("OPEN  %s  %s level %d\n", w.WorldID, w.Kind, w.Level)
+		if w.Ended {
+			continue
 		}
+		open++
+		fmt.Printf("OPEN  %s  %s level %d\n", w.WorldID, w.Kind, w.Level)
+		if !*clean || w.Kind != worldKindPractice || w.BoardRun != nil || w.Season != nil {
+			continue
+		}
+		if err := s.client.World(w.WorldID).Delete(ctx); err != nil {
+			fmt.Printf("      not deleted: %v\n", err)
+			continue
+		}
+		fmt.Println("      deleted")
+		open--
 	}
 	fmt.Printf("%d worlds, %d not ended (limit 8)\n", len(worlds), open)
 	return nil

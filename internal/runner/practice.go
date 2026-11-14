@@ -100,6 +100,12 @@ func createWorld(ctx context.Context, c *api.Client, opt Options) (*api.World, e
 	}
 }
 
+// CreatePractice makes a practice world, waiting for one of the team's slots when all
+// eight are taken (by sweeps running at the same time).
+func CreatePractice(ctx context.Context, c *api.Client, level int, seed string) (*api.World, error) {
+	return createWorld(ctx, c, Options{Level: level, Seed: seed})
+}
+
 func seedName(opt Options) string {
 	switch {
 	case opt.Board:

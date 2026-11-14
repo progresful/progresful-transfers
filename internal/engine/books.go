@@ -54,8 +54,10 @@ type orderBook struct {
 	noteDeadline int
 	// narrowed: the note gives a site shorter hours than stated; the car is posted day by day.
 	narrowed bool
-	// noChain: the order was already tried in a chain; from now on it goes alone.
-	noChain bool
+	// chainTries counts the chain attempts the order has been in; after ChainTries it goes alone.
+	chainTries int
+	// chainAt is when the order's latest chain attempt was posted (0: never in one).
+	chainAt int
 	// trustCounted / trustLate: how the order entered its dealer's trust count.
 	trustCounted bool
 	trustLate    bool
@@ -97,6 +99,9 @@ type gigBook struct {
 	// is the last minute its first car can be collected with both cars still on time.
 	chainUntil int
 	chainLast  int
+	// clockFrom is the minute the gig's fee clock counts from when that is before the
+	// post: a car that already waited in a chain attempt does not open at the lowest fee.
+	clockFrom int
 	// dayLate marks a day-window gig (modeDay) whose day is after the deadline.
 	dayLate bool
 	// bookableUntil is the last minute a driver can still book the gig inside its windows.

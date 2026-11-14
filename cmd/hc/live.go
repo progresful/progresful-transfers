@@ -68,7 +68,7 @@ func cmdRehearse(ctx context.Context, args []string) error {
 	}
 	world := s.client.World(*worldID)
 	if *worldID == "" {
-		if world, err = s.client.Create(ctx, *level, *seed, false); err != nil {
+		if world, err = runner.CreatePractice(ctx, s.client, *level, *seed); err != nil {
 			return fmt.Errorf("create world: %w", err)
 		}
 	}

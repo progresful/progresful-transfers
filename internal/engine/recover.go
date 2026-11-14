@@ -323,6 +323,9 @@ func (e *Engine) onLedger(line *api.LedgerLine) {
 	}
 	e.stats.Ledger[line.Kind] += line.Cents
 	if line.OrderID == nil {
+		if line.GigID != nil && line.Cents < 0 {
+			e.shareFee(*line.GigID, -line.Cents)
+		}
 		return
 	}
 	ob := e.orders[*line.OrderID]
@@ -357,5 +360,37 @@ func (e *Engine) countTrust(ob *orderBook, late bool) {
 	case !ob.trustCounted && !ob.trustLate:
 		ob.trustCounted = true
 		d.trust = min(maxTrust, d.trust+1)
+	}
+}
+
+// shareFee books a fee paid for a gig with the cars of several orders to those orders, by
+// their typical fees. It serves the per-order report only. The cars are read from the
+// post: the gig's own list is empty once its cars are delivered, which is when it is paid.
+func (e *Engine) shareFee(gigID string, cents int) {
+	g := e.gigs[gigID]
+	if g == nil {
+		return
+	}
+	var cars []legRef
+	for _, stop := range g.post.Stops {
+		if stop.Kind == stopPickup {
+			cars = append(cars, legRef{orderID: stop.OrderID, leg: stop.Leg})
+		}
+	}
+	bases := make([]int, len(cars))
+	total := 0
+	for i, ref := range cars {
+		if ob := e.orders[ref.orderID]; ob != nil && ref.leg < len(ob.order.Legs) {
+			bases[i] = e.baseFee(ob, []int{ref.leg})
+			total += bases[i]
+		}
+	}
+	if total == 0 {
+		return
+	}
+	for i, ref := range cars {
+		if ob := e.orders[ref.orderID]; ob != nil {
+			ob.feesPaid += cents * bases[i] / total
+		}
 	}
 }

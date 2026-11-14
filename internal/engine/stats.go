@@ -29,6 +29,9 @@ type Stats struct {
 	Reposts          int            `json:"reposts"`
 	Chains           int            `json:"chains"`
 	ChainBookings    int            `json:"chainBookings"`
+	LongChains       int            `json:"longChains"`
+	ChainsSkipped    int            `json:"chainsSkipped"`
+	ChainProspects   int            `json:"chainProspects"`
 	Duplicates       int            `json:"duplicates"`
 	Offers           int            `json:"offers"`
 	ChainOffers      int            `json:"chainOffers"`
