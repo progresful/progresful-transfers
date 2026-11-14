@@ -169,7 +169,7 @@ func TestRunPathsStayInsideTheRoot(t *testing.T) {
 			t.Errorf("%s: status %d, want 404", path, rec.Code)
 		}
 	}
-	if rec := get(t, h, "/"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Dispatch board") {
+	if rec := get(t, h, "/"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "<title>Progresful</title>") {
 		t.Errorf("the page: status %d", rec.Code)
 	}
 	if rec := get(t, h, "/api/config"); !strings.Contains(rec.Body.String(), `"team":""`) {
