@@ -510,6 +510,14 @@ func DefaultParamsFor(level int) Params {
 			// 97.1 % on time, worst week 94.8 %. A start of 0.95x, a rise to 1.35x, an
 			// opening fee of 0.75x and a slower clock (20 minutes a step) all earn less.
 			p.FeeMid, p.HoldMax = 1.0, 1.25
+			// e20: two changes that each earned a little on the 24 worlds. A request that
+			// would share a driver with a car already held is priced on a lower cost, by a
+			// quarter of the chance that the chain is booked: +166 a week (s.e. 137), 24
+			// more orders, 0.2 points less on time. And a car of a dealer that sends 8 % of
+			// the requests or more is posted to arrive on the day it is ready, for its
+			// trust: +73 (s.e. 92), 0.2 points more on time.
+			p.ChainCostGain = 0.25
+			p.TrustRush = 0.08
 			p.LateMax = 1
 		}
 		if level == paramsShortageLevel {
