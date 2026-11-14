@@ -423,6 +423,9 @@ func (l *liveLoop) round(ctx context.Context, events []api.Event) error {
 	}
 	l.eng.SetNow(l.wc.now())
 	l.eng.Handle(events)
+	for _, d := range l.eng.Decisions() {
+		l.run.Decision(d)
+	}
 	return l.sendAll(ctx)
 }
 

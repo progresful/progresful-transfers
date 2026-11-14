@@ -48,6 +48,7 @@ func TestStreamSendsAFinishedRun(t *testing.T) {
 	root := t.TempDir()
 	writeRun(t, root, "20261114-100000-L8-a-1", map[string]string{
 		metaFile: `{"runId":"20261114-100000-L8-a-1"}`, summaryFile: `{"score":{}}`, eventsFile: testEvents, actionsFile: testActions,
+		decidedFile: `{"at":540,"requestId":"R1","risk":0.04,"cap":0.12}` + "\n",
 	})
 	rec := get(t, (&Server{Root: root}).Handler(), "/api/runs/20261114-100000-L8-a-1/stream")
 	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/event-stream") {
@@ -66,6 +67,7 @@ func TestStreamSendsAFinishedRun(t *testing.T) {
 		`data: {"e":{"seq":1,"at":555,"kind":"order_won","order":{"id":"R1"}}}`,
 		`data: {"v":[556,"g1"]}`,
 		`data: {"e":{"seq":3,"at":600,"kind":"gig_booked","gigId":"g1","driverId":"d1"}}`,
+		`data: {"d":{"at":540,"requestId":"R1","risk":0.04,"cap":0.12}}`,
 		`event: end`,
 		`data: {}`,
 	}

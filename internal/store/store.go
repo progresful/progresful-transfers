@@ -22,12 +22,14 @@ const (
 	metaFile    = "meta.json"
 	eventsFile  = "events.jsonl"
 	actionsFile = "actions.jsonl"
-	summaryFile = "summary.json"
-	revealFile  = "reveal.json"
-	rosterFile  = "roster.json"
-	tapeFile    = "http.jsonl.gz"
-	dirPerm     = 0o755
-	filePerm    = 0o644
+	// decisionsFile holds how each price request was answered and why (for the web view).
+	decisionsFile = "decisions.jsonl"
+	summaryFile   = "summary.json"
+	revealFile    = "reveal.json"
+	rosterFile    = "roster.json"
+	tapeFile      = "http.jsonl.gz"
+	dirPerm       = 0o755
+	filePerm      = 0o644
 )
 
 var indexMu sync.Mutex
@@ -70,6 +72,7 @@ type Run struct {
 	mu      sync.Mutex
 	events  *bufio.Writer
 	actions *bufio.Writer
+	notes   *bufio.Writer // decisions.jsonl
 	tape    *gzip.Writer
 	tapeBuf *bufio.Writer
 	files   []*os.File
@@ -90,6 +93,10 @@ func NewRun(root string, meta Meta) (*Run, error) {
 		return nil, err
 	}
 	if r.actions, err = r.open(actionsFile); err != nil {
+		r.closeFiles()
+		return nil, err
+	}
+	if r.notes, err = r.open(decisionsFile); err != nil {
 		r.closeFiles()
 		return nil, err
 	}
@@ -179,6 +186,18 @@ func (r *Run) Event(raw json.RawMessage) {
 	r.events.WriteByte('\n')
 }
 
+// Decision appends one record of how a price request was answered (any JSON value).
+func (r *Run) Decision(v any) {
+	line, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.notes.Write(line)
+	r.notes.WriteByte('\n')
+}
+
 // ActionRecord is one sent action with its result.
 type ActionRecord struct {
 	At     int              `json:"at"`
@@ -229,7 +248,7 @@ func (r *Run) Lines(name string, n int, line func(i int) any) error {
 func (r *Run) Flush() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	errs := []error{r.events.Flush(), r.actions.Flush()}
+	errs := []error{r.events.Flush(), r.actions.Flush(), r.notes.Flush()}
 	if r.tape != nil {
 		// A sync flush keeps the tape readable up to here if the process dies.
 		errs = append(errs, r.tape.Flush(), r.tapeBuf.Flush())

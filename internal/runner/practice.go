@@ -159,6 +159,9 @@ func play(ctx context.Context, world *api.World, eng *engine.Engine, run *store.
 			run.Event(step.Events[i].Raw)
 		}
 		eng.Handle(step.Events)
+		for _, d := range eng.Decisions() {
+			run.Decision(d)
+		}
 		if cal.DayOf(now) > day {
 			// Read every day, shown or not, so a run makes the same requests either way.
 			steps++

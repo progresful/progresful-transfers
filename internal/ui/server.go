@@ -31,6 +31,7 @@ var static embed.FS
 const (
 	eventsFile   = "events.jsonl"
 	actionsFile  = "actions.jsonl"
+	decidedFile  = "decisions.jsonl"
 	metaFile     = "meta.json"
 	summaryFile  = "summary.json"
 	rosterFile   = "roster.json"
@@ -253,8 +254,9 @@ func (t *tail) close() {
 
 // stream sends a run's events and actions as server-sent events: everything on disk
 // first, then what the run writes while it is played, until the run has ended. Each
-// message is {"e": <event>}, {"a": <action>} or, for a driver's look at a gig (four
-// fifths of all events), the short {"v": [<minute>, <gig id>]}.
+// message is {"e": <event>}, {"a": <action>}, {"d": <how a request was answered>} or,
+// for a driver's look at a gig (four fifths of all events), the short
+// {"v": [<minute>, <gig id>]}.
 func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	dir := s.runDir(r.PathValue("id"))
 	if dir == "" {
@@ -266,8 +268,10 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	events, actions := &tail{path: filepath.Join(dir, eventsFile)}, &tail{path: filepath.Join(dir, actionsFile)}
+	decided := &tail{path: filepath.Join(dir, decidedFile)} // how each request was answered and why; older runs have none
 	defer events.close()
 	defer actions.close()
+	defer decided.close()
 	send := func(key string) func([]byte) error {
 		return func(line []byte) error {
 			if key == "e" && containsViewed(line) {
@@ -294,12 +298,16 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 		if err := events.lines(send("e")); err != nil {
 			return
 		}
+		if err := decided.lines(send("d")); err != nil {
+			return
+		}
 		_, statErr := os.Stat(filepath.Join(dir, summaryFile))
 		ended := statErr == nil
 		if ended {
 			// The summary is written after the last lines: read once more, then stop.
 			_ = actions.lines(send("a"))
 			_ = events.lines(send("e"))
+			_ = decided.lines(send("d"))
 			fmt.Fprint(w, "event: end\ndata: {}\n\n")
 			flusher.Flush()
 			return

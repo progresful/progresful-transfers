@@ -36,6 +36,12 @@ type Engine struct {
 	orders  map[string]*orderBook
 	gigs    map[string]*gigBook
 	outbox  []Pending
+	// decided is why each price request was answered as it was, for the run log; why,
+	// whyRisk and whyCap are filled while a request is priced.
+	decided []Decision
+	why     string
+	whyRisk float64
+	whyCap  float64
 	stats   Stats
 	// replay is set while Rejoin feeds old events through the books: nothing is sent.
 	replay bool
@@ -115,6 +121,35 @@ func sortStrings(s []string) { sort.Strings(s) }
 func (e *Engine) Drain() []Pending {
 	out := e.outbox
 	e.outbox = nil
+	return out
+}
+
+// Decision records how a price request was answered: priced (Why empty) or passed, and
+// the modelled chance of a late arrival that went into it. It is kept for the run log
+// and the web view; no decision reads it.
+type Decision struct {
+	At        int     `json:"at"`
+	RequestID string  `json:"requestId"`
+	Why       string  `json:"why,omitempty"` // why the request was passed; empty when it was priced
+	Risk      float64 `json:"risk"`          // of the options priced, or of the safest option refused
+	Cap       float64 `json:"cap,omitempty"` // the highest risk still priced at that moment
+}
+
+// Reasons for passing on a request.
+const (
+	whyFewDrivers = "too few drivers near"
+	whyPremium    = "premium car"
+	whyTradeIn    = "trade-in"
+	whyNoMargin   = "list price under the cost"
+	whyNoTime     = "too little time"
+	whyRisky      = "too risky"
+	whyNoPrice    = "no price pays"
+)
+
+// Decisions hands over the decisions recorded since the last call.
+func (e *Engine) Decisions() []Decision {
+	out := e.decided
+	e.decided = nil
 	return out
 }
 

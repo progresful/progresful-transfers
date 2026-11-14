@@ -287,7 +287,15 @@ func (e *Engine) onRequest(req *api.PriceRequest) {
 		e.listCount++
 	}
 	e.reqs[req.ID] = req
+	e.why, e.whyRisk, e.whyCap = "", 0, 0
 	prices := e.pricesFor(req)
+	if !e.replay {
+		d := Decision{At: e.now, RequestID: req.ID, Risk: e.whyRisk, Cap: e.whyCap}
+		if len(prices) == 0 {
+			d.Why = e.why
+		}
+		e.decided = append(e.decided, d)
+	}
 	if len(prices) == 0 {
 		e.stats.Declined++
 		if e.Level < levelQuotes {
@@ -305,31 +313,41 @@ func (e *Engine) onRequest(req *api.PriceRequest) {
 func (e *Engine) pricesFor(req *api.PriceRequest) map[string]int {
 	if !e.supplied(req) {
 		e.stats.DeclinedSupply++
+		e.why = whyFewDrivers
 		return nil
 	}
 	if why := e.noteRefusal(req); why != "" {
 		e.stats.DeclinedNote[why]++
+		e.why = why
 		return nil
 	}
 	if e.P.Premium != 1 && hasPremium(req) {
 		e.stats.DeclinedNote["premium car"]++
+		e.why = whyPremium
 		return nil
 	}
 	if e.P.TradeIns != 1 && len(req.Legs) > 1 && e.Level >= levelQuotes {
 		e.stats.DeclinedNote["trade-in"]++
+		e.why = whyTradeIn
 		return nil
 	}
 	floor := e.costFloor(req)
 	if e.Level < levelQuotes {
 		// The dealer ignores the price and takes the first option at its list price.
 		first := req.Options[0]
-		if first.ListPriceCents < floor || e.slack(req, first) < e.P.MinSlackMin || e.shortLead(req, first) {
+		if first.ListPriceCents < floor {
+			e.why = whyNoMargin
+			return nil
+		}
+		if e.slack(req, first) < e.P.MinSlackMin || e.shortLead(req, first) {
+			e.why = whyNoTime
 			return nil
 		}
 		return map[string]int{first.Kind: first.ListPriceCents}
 	}
 	var offered []api.DeliveryOption
 	risk, riskCap := 0.0, e.riskCap(e.market.dealer(req.DealerID))
+	safest := math.Inf(1) // the lowest risk among the options refused for their risk
 	for _, opt := range req.Options {
 		if e.slack(req, opt) < e.P.MinSlackMin || e.shortLead(req, opt) {
 			continue
@@ -337,12 +355,18 @@ func (e *Engine) pricesFor(req *api.PriceRequest) map[string]int {
 		r := e.lateRisk(req, opt)
 		if r > riskCap {
 			e.stats.RiskyOptions++
+			safest = math.Min(safest, r)
 			continue
 		}
 		offered = append(offered, opt)
 		risk = math.Max(risk, r)
 	}
+	e.whyCap = riskCap
 	if len(offered) == 0 {
+		e.why = whyNoTime
+		if !math.IsInf(safest, 1) {
+			e.why, e.whyRisk = whyRisky, safest
+		}
 		return nil
 	}
 	if keep := e.P.SlowOptions; keep > 0 && len(offered) > keep {
@@ -353,8 +377,10 @@ func (e *Engine) pricesFor(req *api.PriceRequest) map[string]int {
 			risk = math.Max(risk, e.lateRisk(req, opt))
 		}
 	}
+	e.whyRisk = risk
 	ratio := e.quoteRatio(req, offered[0], floor, risk)
 	if ratio <= 0 {
+		e.why = whyNoPrice
 		return nil
 	}
 	prices := make(map[string]int, len(offered))

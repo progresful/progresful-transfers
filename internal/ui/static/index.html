@@ -16,7 +16,7 @@
     --paper: #f4f2ec; --surface: #fcfcfb; --raised: #ffffff; --rule: #dedbd2; --rule-soft: #ebe8e0;
     --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #8a8780;
     --road: #1baf7a; --driver: #2a78d6; --wait: #eda100; --late: #e34948; --pale: #b7d3f6;
-    --marking: #f2c200; --night: rgba(30, 40, 70, .05); --ahead: rgba(11, 11, 11, .04);
+    --money: #0a7d55; --marking: #f2c200; --night: rgba(30, 40, 70, .05); --ahead: rgba(11, 11, 11, .04);
     --shadow: 0 1px 2px rgba(20, 20, 15, .06), 0 6px 20px rgba(20, 20, 15, .06);
     --tiles: saturate(.45) brightness(1.05) contrast(.94);
   }
@@ -25,7 +25,7 @@
     --paper: #121311; --surface: #1a1a19; --raised: #232422; --rule: #33342f; --rule-soft: #292a26;
     --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8b8a80;
     --road: #199e70; --driver: #3987e5; --wait: #c98500; --late: #e66767; --pale: #1c3f6e;
-    --marking: #e0b400; --night: rgba(0, 0, 0, .3); --ahead: rgba(255, 255, 255, .035);
+    --money: #58d6a6; --marking: #e0b400; --night: rgba(0, 0, 0, .3); --ahead: rgba(255, 255, 255, .035);
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
     --tiles: invert(1) hue-rotate(180deg) saturate(.3) brightness(.78) contrast(.9);
   }
@@ -66,6 +66,13 @@
   .leaflet-tooltip { background: var(--raised); color: var(--ink); border: 1px solid var(--rule); box-shadow: var(--shadow); font: 13px "Barlow Semi Condensed", sans-serif; border-radius: 6px; }
   .leaflet-tooltip::before { display: none; }
   .town { background: none; border: 0; box-shadow: none; padding: 0; color: var(--ink-2); font: 600 11.5px "Barlow Semi Condensed", sans-serif; letter-spacing: .02em; text-shadow: 0 0 2px var(--surface), 0 0 2px var(--surface), 0 0 3px var(--surface); white-space: nowrap; }
+  /* what moves: a car (round, or square and red once past its deadline) or a driver on the way to one
+     (a ring), each with what it brings in when it is done: $, $$ or $$$ */
+  .mk { display: flex; align-items: center; gap: 2px; transform: translate(-7px, -7px); width: max-content; }
+  .mk i { display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--road); border: 2px solid var(--surface); box-shadow: 0 0 0 1px rgba(0, 0, 0, .28); flex: none; }
+  .mk.late i { background: var(--late); border-radius: 4px; }
+  .mk.drv i { background: var(--surface); border: 3px solid var(--driver); box-shadow: none; width: 13px; height: 13px; }
+  .mk b { font: 700 12px/1 "Barlow Condensed", sans-serif; color: var(--money); letter-spacing: -.03em; text-shadow: 0 0 2px var(--surface), 0 0 2px var(--surface), 0 0 3px var(--surface), 0 0 3px var(--surface); }
   /* a site with cars waiting: the count, then the town's name beside it (never under it) */
   .site-wrap { display: flex; align-items: center; gap: 5px; transform: translate(-11px, -11px); width: max-content; }
   .site { display: inline-flex; align-items: center; justify-content: center; gap: 2px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; font: 700 13px/1 "Barlow Condensed", sans-serif; color: #fff; border: 2px solid var(--surface); box-shadow: 0 1px 4px rgba(0, 0, 0, .25); white-space: nowrap; flex: none; }
@@ -219,8 +226,8 @@
       <span id="s-done"></span>
     </div>
     <div class="ov feed" id="feed-box" hidden>
-      <h2><span id="feed-title">Final ranking</span><small id="feed-sub"></small></h2>
-      <table><thead><tr><th>#</th><th>Team</th><th>Margin</th><th>Orders</th><th>On time</th></tr></thead><tbody id="feed"></tbody></table>
+      <h2 id="feed-head" title="Click to fold away or open" style="cursor:pointer"><span id="feed-title">Final ranking</span><small id="feed-sub"></small></h2>
+      <table id="feed-table"><thead><tr><th>#</th><th>Team</th><th>Margin</th><th>Orders</th><th>On time</th></tr></thead><tbody id="feed"></tbody></table>
     </div>
     <div class="ov chart">
       <h2>Margin through the week <small id="chart-now"></small></h2>
@@ -229,7 +236,8 @@
     <div class="key" aria-label="Map key">
       <div><span class="sw" style="background:var(--road)"></span>Car on the road</div>
       <div><span class="sw sq" style="background:var(--late)"></span>Car past its deadline</div>
-      <div><span class="sw ring"></span>Driver on the way to a car</div>
+      <div><span class="sw ring"></span>Driver on the way to a car (dashed line)</div>
+      <div><b style="color:var(--money);font:700 13px 'Barlow Condensed',sans-serif;width:16px;text-align:center">$$</b>Margin when done: $ under €25, $$ to €70, $$$ above</div>
       <div><span class="badge" style="background:var(--wait);color:#1d1500">3</span>Cars at a site without a driver</div>
       <div><span class="badge" style="background:var(--driver)">3</span>Cars at a site, driver booked</div>
     </div>
@@ -315,7 +323,7 @@ document.documentElement.dataset.theme = storedTheme || (matchMedia("(prefers-co
 readColours();
 
 // ---- map -------------------------------------------------------------------
-const map = L.map("map", { preferCanvas: true, zoomSnap: 0.25 }).setView([63.2, 26], 6);
+const map = L.map("map", { preferCanvas: true }).setView([63.2, 26], 6);
 // OpenStreetMap's own tiles; the theme tones them down (and turns them dark) with a filter.
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 12, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · roads by OSRM' }).addTo(map);
 const layers = { routes: L.layerGroup().addTo(map), places: L.layerGroup().addTo(map), moving: L.layerGroup().addTo(map), sites: L.layerGroup().addTo(map) };
@@ -367,6 +375,7 @@ function along(r, f) {
 // ---- the run's log and the state at a minute -------------------------------
 let log = [], cursor = 0, dirty = true, S = null;
 const pickedAt = new Map(), deliveredAt = new Map(); // "order|leg" -> minute, known ahead in a replay
+const whys = new Map();                              // request -> how the engine answered it and why
 const H = { req: [], won: [], done: [], late: [] };    // per hour, for the timeline
 const D = { won: [], margin: [] };                     // per day, for the day headers
 let lastAct = 0;
@@ -412,7 +421,8 @@ function apply(it) {
       if (firstAct === null || t < firstAct) break; // asked before we joined: not ours to answer
       const r = e.request, leg = r.legs[0];
       S.reqs.set(r.id, { id: r.id, at: t, from: leg.pickup.placeId, to: leg.delivery.placeId, legs: r.legs.length, ref: r.referenceFeeCents || 0,
-        lists: Object.fromEntries((r.options || []).map((o) => [o.kind, o.listPriceCents])), price: 0, ratio: 0, passed: false, outcome: "open" });
+        lists: Object.fromEntries((r.options || []).map((o) => [o.kind, o.listPriceCents])), price: 0, ratio: 0, passed: false, outcome: "open",
+        premium: r.legs.some((l) => l.car && l.car.premium), why: "", risk: null });
       S.n.requests++;
       if (S.early.has(r.id)) { priced(S.reqs.get(r.id), S.early.get(r.id)); S.early.delete(r.id); } // the quote went out in the same minute
       break;
@@ -509,6 +519,7 @@ function advance() { // bring the state to minute T
 function bump(list, t, by = 1, unit = HOUR) { const i = Math.floor(t / unit); list[i] = (list[i] || 0) + by; }
 function add(msg) { // one message of the run's stream
   let it = null;
+  if (msg.d) { whys.set(msg.d.requestId, msg.d); return; }
   if (msg.v) it = { t: msg.v[0], k: "viewed", gig: msg.v[1] };
   else if (msg.a) {
     const a = msg.a, act = a.action || {};
@@ -545,7 +556,7 @@ function endOfShow() { return ended ? Math.min(tMax, lastAct + HOUR) : tMax; }
 // ---- drawing the map -------------------------------------------------------
 const siteMarks = {}, movers = new Map();
 function restyleMap() {
-  for (const m of movers.values()) m.color = null;
+  for (const m of movers.values()) m.look = "";
   for (const id in siteMarks) { siteMarks[id].dot.setStyle({ color: C["ink-3"], fillColor: C.surface }); siteMarks[id].sig = "?"; }
 }
 function drawPlaces() {
@@ -556,13 +567,18 @@ function drawPlaces() {
     siteMarks[p.id] = { dot, badge: null, sig: "" };
   }
 }
-function showTrip(key, a, b, frac, style, lineStyle, tip) {
+const tier = (cents) => cents >= 7000 ? "$$$" : cents >= 2500 ? "$$" : cents > 0 ? "$" : "";
+function showTrip(key, a, b, frac, cls, money, lineStyle, tip) {
   const r = route(a, b); if (!r) return;
   let m = movers.get(key);
-  if (!m) { m = { dot: L.circleMarker([0, 0], style).addTo(layers.moving), line: null, routeKey: "", color: style.fillColor + style.color }; movers.set(key, m); }
+  const look = cls + money + lineStyle.color;
+  if (!m) { m = { dot: L.marker([0, 0], { keyboard: false, zIndexOffset: cls === "drv" ? 0 : 100 }).addTo(layers.moving), line: null, routeKey: "", look: "" }; movers.set(key, m); }
   m.used = true;
   m.dot.setLatLng(along(r, frac));
-  if (m.color !== style.fillColor + style.color) { m.dot.setStyle(style); m.color = style.fillColor + style.color; if (m.line) m.line.setStyle(lineStyle); }
+  if (m.look !== look) {
+    m.dot.setIcon(L.divIcon({ className: "", html: `<div class="mk ${cls}"><i></i>${money ? `<b>${money}</b>` : ""}</div>`, iconSize: [0, 0] }));
+    m.look = look; if (m.line) m.line.setStyle(lineStyle);
+  }
   const rk = a + ">" + b;
   if (m.routeKey !== rk) {
     if (m.line) layers.routes.removeLayer(m.line);
@@ -584,11 +600,10 @@ function draw() {
         const known = deliveredAt.get(key);
         const end = known !== undefined ? Math.min(known, leg.picked + r.minutes * TRIP_SLACK) : leg.picked + r.minutes * LIVE_TRIP;
         const frac = Math.min(known !== undefined ? 1 : 0.97, (T - leg.picked) / Math.max(1, end - leg.picked));
-        const late = o.late || T > o.deadline, colour = late ? C.late : C.road;
-        showTrip("car:" + key, leg.from, leg.to, frac,
-          { radius: late ? 6.5 : 5.5, color: C.surface, weight: 2, fillColor: colour, fillOpacity: 1 },
-          { color: colour, weight: 2, opacity: .38 },
-          `${esc(name(leg.from))} → ${esc(name(leg.to))} · due ${clock(o.deadline)} · ${euro(o.price)}`);
+        const late = o.late || T > o.deadline, colour = late ? C.late : C.road, fee = feeOf(o), margin = fee ? o.price - fee : 0;
+        showTrip("car:" + key, leg.from, leg.to, frac, late ? "car late" : "car", tier(margin),
+          { color: colour, weight: 2, opacity: .4 },
+          `${esc(name(leg.from))} → ${esc(name(leg.to))} · due ${clock(o.deadline)} · price ${euro(o.price)}${fee ? `, driver ${euro(fee)}, margin ${euro(margin)}` : ""}`);
         road++;
       } else { // still at its site
         const has = live(S.gigs.get(S.legGig.get(key)));
@@ -608,10 +623,12 @@ function draw() {
     const known = pickedAt.get(next.orderId + "|" + next.leg);
     const end = known !== undefined ? known : since + r.minutes * APPROACH;
     const frac = Math.min(known !== undefined ? 1 : 0.95, (T - since) / Math.max(1, end - since));
-    showTrip("drv:" + g.id, from, target, frac,
-      { radius: 4.5, color: C.driver, weight: 2.5, fillColor: C.surface, fillOpacity: 1 },
-      { color: C.driver, weight: 1.5, opacity: .3, dashArray: "3 6" },
-      `Driver on the way to ${esc(name(target))}`);
+    let price = 0; const seen = new Set();
+    for (const l of g.legs) { const o = S.orders.get(l.orderId); if (o && !o.cancelled && !seen.has(o.id)) { seen.add(o.id); price += o.price; } }
+    const margin = g.fee ? price - g.fee : 0;
+    showTrip("drv:" + g.id, from, target, frac, "drv", tier(margin),
+      { color: C.driver, weight: 2.5, opacity: .7, dashArray: "2 7", lineCap: "round" },
+      `Driver on the way from ${esc(name(from))} to a car in ${esc(name(target))}${g.fee ? ` · fee ${euro(g.fee)}, margin ${euro(margin)}` : ""}`);
   }
   for (const [key, m] of movers) {
     if (m.used) continue;
@@ -681,19 +698,36 @@ function feeOf(o) { // the driver's fee for an order's car: its share when the g
   const r = S.reqs.get(o.id), typical = typicalOf(g);
   return r && typical ? g.fee * r.ref / typical : g.fee / g.legs.length;
 }
+function whyPassed(r, short) { // the engine's own reason when the run recorded it, else what the request shows
+  const d = whys.get(r.id);
+  if (d && d.why) return d.why + (!short && d.why === "too risky" ? ` · ${Math.round(100 * d.risk)}%` : "");
+  return r.premium ? "premium car" : r.legs > 1 ? "trade-in" : "too risky, or no price pays";
+}
 function quotes() { // what dealers asked for, what we answered, what they took, and what became of the order
   const n = S.n, open = Math.max(0, n.requests - n.won - n.lost), lostPriced = Math.max(0, n.lost - n.passed), pricedN = n.won + lostPriced;
   flow("q-flow", [n.won, lostPriced, n.passed, open]);
   html("q-nums", `<span><b>${n.requests}</b> asked</span><span><i class="d road"></i><b>${n.won}</b> won</span><span><i class="d gone"></i><b>${lostPriced}</b> lost</span><span><i class="d wait"></i><b>${n.passed}</b> passed</span><span><i class="d driver"></i><b>${open}</b> waiting</span>`
-    + `<span><b>${pricedN ? Math.round(100 * n.won / pricedN) + "%" : "–"}</b> of priced quotes won</span><span>won at <b>${n.won ? (S.sum.wonRatio / n.won).toFixed(2) : "–"}×</b> list</span><span>lost at <b>${S.sum.lostN ? (S.sum.lostRatio / S.sum.lostN).toFixed(2) : "–"}×</b></span>`);
+    + `<span><b>${pricedN ? Math.round(100 * n.won / pricedN) + "%" : "–"}</b> of priced quotes won</span><span>won at <b>${n.won ? (S.sum.wonRatio / n.won).toFixed(2) : "–"}×</b> list</span><span>lost at <b>${S.sum.lostN ? (S.sum.lostRatio / S.sum.lostN).toFixed(2) : "–"}×</b></span>`
+    + passedWhy());
   const list = [...S.reqs.values()].slice(-LIST_ROWS).reverse();
   html("q-rows", list.map((r) => {
     const o = r.outcome === "won" ? S.orders.get(r.id) : null;
     const answer = r.outcome === "won" ? '<i class="d road"></i>won' : r.passed ? '<i class="d wait"></i>passed' : r.outcome === "lost" ? '<i class="d gone"></i>lost' : '<i class="d driver"></i>waiting';
     let then = "", margin = "";
+    if (r.passed) {
+      const w = whys.get(r.id), full = w && w.why === "too risky" ? `judged ${Math.round(100 * w.risk)}% likely to arrive late; the limit then was ${Math.round(100 * w.cap)}%` : whyPassed(r);
+      then = `<span class="dim" title="${esc(full)}">${esc(whyPassed(r))}</span>`;
+    }
     if (o) { const [cls, words] = orderState(o); then = `<i class="d ${cls}"></i>${esc(words)}`; const fee = feeOf(o); if (fee) margin = euro(o.price - fee); }
-    return `<tr><td class="tm">${clock(r.at)}</td><td title="${esc(name(r.from))} → ${esc(name(r.to))}">${esc(name(r.from))} → ${esc(name(r.to))}</td><td class="n">${r.passed || !r.price ? "–" : euro(r.price)}</td><td class="n dim">${r.passed || !r.ratio ? "" : r.ratio.toFixed(2)}</td><td>${answer}</td><td>${then}</td><td class="n">${margin}</td></tr>`;
+    const d = whys.get(r.id), risk = d && !d.why ? ` · judged ${Math.round(100 * d.risk)}% likely to be late` : "";
+    return `<tr><td class="tm">${clock(r.at)}</td><td title="${esc(name(r.from))} → ${esc(name(r.to))}${risk}">${esc(name(r.from))} → ${esc(name(r.to))}</td><td class="n">${r.passed || !r.price ? "–" : euro(r.price)}</td><td class="n dim">${r.passed || !r.ratio ? "" : r.ratio.toFixed(2)}</td><td>${answer}</td><td>${then}</td><td class="n">${margin}</td></tr>`;
   }).join(""));
+}
+function passedWhy() { // why we passed, counted
+  const by = new Map();
+  for (const r of S.reqs.values()) if (r.passed) { const w = whyPassed(r, true); by.set(w, (by.get(w) || 0) + 1); }
+  if (!by.size) return "";
+  return `<span>passed because: ${[...by].sort((a, b) => b[1] - a[1]).map(([w, c]) => `<b>${c}</b> ${esc(w)}`).join(" · ")}</span>`;
 }
 function gigs() { // what is in the drivers' app, who took it, and when its car is due
   const n = S.n, all = [...S.gigs.values()], open = all.filter((g) => g.status === "open"), booked = all.filter((g) => g.status === "booked"), working = all.filter((g) => g.status === "working");
@@ -867,7 +901,7 @@ function label(run) {
   const state = run.live ? "● LIVE · " : !run.complete ? "stopped early · " : "";
   return `${state}${m.startedAt.slice(11, 16)} · ${what}${s ? ` · ${euro(s.marginCents)} · ${s.wonOrders} orders · ${(100 * s.onTimeShare).toFixed(1)}% on time` : ""}`;
 }
-let runList = [], announced = "";
+let runList = [], announced = "", curKind = "";
 function fillRuns(runs) {
   runList = runs;
   $("runs").innerHTML = runs.map((r) => `<option value="${esc(r.id)}">${esc(label(r))}</option>`).join("");
@@ -884,7 +918,7 @@ async function loadRuns() {
   if (wanted) { $("runs").value = wanted; await open(wanted); }
 }
 function clearLog() {
-  log = []; cursor = 0; dirty = true; S = fresh(); pickedAt.clear(); deliveredAt.clear(); lastAct = 0; tMax = 0; firstAct = null; tFirst = null;
+  log = []; cursor = 0; dirty = true; S = fresh(); pickedAt.clear(); deliveredAt.clear(); whys.clear(); lastAct = 0; tMax = 0; firstAct = null; tFirst = null;
   for (const k in H) H[k] = []; for (const k in D) D[k] = [];
 }
 async function open(id) {
@@ -893,6 +927,7 @@ async function open(id) {
   runID = id; clearLog();
   T = 0; t0 = 0; ended = !(info && info.live); following = !ended; playing = true; wasLive = !ended;
   const m = (info && info.meta) || {};
+  curKind = m.kind || ""; $("feed-box").hidden = true;
   $("runs").title = [m.kind === "final" ? "the final" : m.kind === "board" ? "ranking run" : m.kind ? m.kind + " run" : "", m.engine ? "engine " + m.engine : "", info && !info.live && !info.complete && m.startedAt ? "stopped before the week ended" : ""].filter(Boolean).join(" · ");
   homes = {};
   try { for (const d of await json(`/api/runs/${encodeURIComponent(id)}/roster`)) homes[d.id] = d.homePlaceId; } catch (err) { /* a run without a roster still plays */ }
@@ -913,6 +948,7 @@ $("play").onclick = () => {
   playing = !playing; following = false;
 };
 $("live").onclick = () => { following = true; playing = true; };
+$("feed-head").onclick = () => { const t = $("feed-table"); t.hidden = !t.hidden; $("feed-head").style.marginBottom = t.hidden ? "0" : ""; };
 $("skip").onclick = () => { skipQuiet = !skipQuiet; $("skip").classList.toggle("on", skipQuiet); };
 document.addEventListener("keydown", (ev) => { if (ev.code === "Space" && ev.target.tagName !== "SELECT" && ev.target.tagName !== "BUTTON") { ev.preventDefault(); $("play").click(); } });
 
@@ -921,7 +957,8 @@ function feed() { // the ranking of a final, from the public feed
   es.onmessage = (ev) => {
     const f = JSON.parse(ev.data), box = $("feed-box");
     finalClock = f.status === "running" && typeof f.now === "number" ? { now: f.now, at: performance.now() } : null;
-    if (!f.teams || !f.teams.length || f.status === "none") { box.hidden = true; return; }
+    // The ranking shows while a final runs, and afterwards beside the final's own run.
+    if (!f.teams || !f.teams.length || !(f.status === "running" || (f.status === "ended" && curKind === "final"))) { box.hidden = true; return; }
     box.hidden = false;
     $("feed-title").textContent = f.status === "running" ? "Final · live ranking" : "Final · " + f.status;
     $("feed-sub").textContent = `${f.teams.length} teams`;
