@@ -15,17 +15,17 @@
     color-scheme: light;
     --paper: #f4f2ec; --surface: #fcfcfb; --raised: #ffffff; --rule: #dedbd2; --rule-soft: #ebe8e0;
     --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #8a8780;
-    --road: #1baf7a; --driver: #2a78d6; --wait: #eda100; --late: #e34948;
-    --marking: #f2c200; --night: rgba(30, 40, 70, .055); --ahead: rgba(11, 11, 11, .035);
+    --road: #1baf7a; --driver: #2a78d6; --wait: #eda100; --late: #e34948; --pale: #b7d3f6;
+    --marking: #f2c200; --night: rgba(30, 40, 70, .05); --ahead: rgba(11, 11, 11, .04);
     --shadow: 0 1px 2px rgba(20, 20, 15, .06), 0 6px 20px rgba(20, 20, 15, .06);
     --tiles: saturate(.45) brightness(1.05) contrast(.94);
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --paper: #121311; --surface: #1a1a19; --raised: #222321; --rule: #33342f; --rule-soft: #292a26;
+    --paper: #121311; --surface: #1a1a19; --raised: #232422; --rule: #33342f; --rule-soft: #292a26;
     --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #8b8a80;
-    --road: #199e70; --driver: #3987e5; --wait: #c98500; --late: #e66767;
-    --marking: #e0b400; --night: rgba(0, 0, 0, .28); --ahead: rgba(255, 255, 255, .03);
+    --road: #199e70; --driver: #3987e5; --wait: #c98500; --late: #e66767; --pale: #1c3f6e;
+    --marking: #e0b400; --night: rgba(0, 0, 0, .3); --ahead: rgba(255, 255, 255, .035);
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
     --tiles: invert(1) hue-rotate(180deg) saturate(.3) brightness(.78) contrast(.9);
   }
@@ -34,7 +34,7 @@
   html, body { height: 100%; margin: 0; }
   body { background: var(--paper); color: var(--ink); font: 15px/1.35 "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   button, select { font: inherit; color: inherit; }
-  #app { display: grid; grid-template-columns: minmax(0, 1fr) 396px; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  #app { display: grid; grid-template-columns: minmax(0, 1fr) 408px; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
 
   /* top bar */
   header { grid-column: 1 / 3; display: flex; align-items: center; gap: 16px; padding: 0 18px; height: 58px; background: var(--surface); border-bottom: 1px solid var(--rule); position: relative; }
@@ -43,7 +43,7 @@
   .brand b { font: 700 22px/1 "Barlow Condensed", sans-serif; letter-spacing: .06em; text-transform: uppercase; }
   .brand span { color: var(--ink-3); font-size: 13px; }
   .pick { position: relative; min-width: 0; }
-  .pick select { appearance: none; background: var(--raised); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 34px 8px 12px; max-width: 46vw; cursor: pointer; text-overflow: ellipsis; }
+  .pick select { appearance: none; background: var(--raised); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 34px 8px 12px; max-width: 44vw; cursor: pointer; text-overflow: ellipsis; }
   .pick::after { content: "▾"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-3); pointer-events: none; }
   .pill { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--rule); color: var(--ink-2); background: var(--raised); white-space: nowrap; }
   .pill.live { border-color: var(--late); color: var(--late); }
@@ -66,8 +66,11 @@
   .leaflet-control-attribution a { color: var(--ink-2); }
   .leaflet-tooltip { background: var(--raised); color: var(--ink); border: 1px solid var(--rule); box-shadow: var(--shadow); font: 13px "Barlow Semi Condensed", sans-serif; border-radius: 6px; }
   .leaflet-tooltip::before { display: none; }
-  .town { background: none; border: 0; box-shadow: none; padding: 0; color: var(--ink-2); font: 600 11.5px "Barlow Semi Condensed", sans-serif; letter-spacing: .02em; text-shadow: 0 0 2px var(--surface), 0 0 2px var(--surface), 0 0 3px var(--surface); }
-  .site { display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; font: 700 13px/1 "Barlow Condensed", sans-serif; color: #fff; border: 2px solid var(--surface); box-shadow: 0 1px 4px rgba(0, 0, 0, .25); white-space: nowrap; }
+  .town { background: none; border: 0; box-shadow: none; padding: 0; color: var(--ink-2); font: 600 11.5px "Barlow Semi Condensed", sans-serif; letter-spacing: .02em; text-shadow: 0 0 2px var(--surface), 0 0 2px var(--surface), 0 0 3px var(--surface); white-space: nowrap; }
+  /* a site with cars waiting: the count, then the town's name beside it (never under it) */
+  .site-wrap { display: flex; align-items: center; gap: 5px; transform: translate(-11px, -11px); width: max-content; }
+  .site { display: inline-flex; align-items: center; justify-content: center; gap: 2px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; font: 700 13px/1 "Barlow Condensed", sans-serif; color: #fff; border: 2px solid var(--surface); box-shadow: 0 1px 4px rgba(0, 0, 0, .25); white-space: nowrap; flex: none; }
+  .site b { font-size: 12px; opacity: .95; }
   .site.wait { background: var(--wait); color: #1d1500; } .site.booked { background: var(--driver); } .site.urgent { background: var(--late); }
   .key { position: absolute; left: 14px; bottom: 26px; z-index: 450; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--rule); border-radius: 10px; padding: 9px 12px; display: grid; gap: 5px; font-size: 13px; color: var(--ink-2); box-shadow: var(--shadow); backdrop-filter: blur(4px); }
   .key div { display: flex; align-items: center; gap: 8px; }
@@ -77,49 +80,72 @@
   .badge { min-width: 16px; height: 16px; border-radius: 8px; flex: none; font: 700 11px/16px "Barlow Condensed", sans-serif; text-align: center; color: #fff; padding: 0 4px; }
 
   /* side panel */
-  aside { grid-row: 2; grid-column: 2; background: var(--surface); border-left: 1px solid var(--rule); overflow-y: auto; min-height: 0; }
+  aside { grid-row: 2; grid-column: 2; background: var(--surface); border-left: 1px solid var(--rule); min-height: 0; display: flex; flex-direction: column; }
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 12px 14px 10px; border-bottom: 1px solid var(--rule-soft); flex: none; }
+  .tabs button { height: 34px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 13px; color: var(--ink-2); }
+  .tabs button:hover { background: var(--rule-soft); }
+  .tabs button.on { background: var(--ink); color: var(--surface); }
+  .tab { overflow-y: auto; min-height: 0; flex: 1; }
   section { padding: 16px 18px; border-bottom: 1px solid var(--rule-soft); }
   h2 { margin: 0 0 10px; font: 600 12px "Barlow Semi Condensed", sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   h2 small { letter-spacing: 0; text-transform: none; font-size: 13px; color: var(--ink-2); font-weight: 500; text-align: right; }
   .hero { font: 700 60px/0.95 "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
   .hero-sub { margin-top: 6px; color: var(--ink-2); font-size: 14px; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+  .grid.three { grid-template-columns: repeat(3, 1fr); }
   .kpi .k { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
   .kpi .v { font: 600 30px/1.05 "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .grid.three .kpi .v { font-size: 26px; }
   .kpi .s { font-size: 13px; color: var(--ink-2); margin-top: 1px; min-height: 18px; }
   .status { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
   .status i { font-style: normal; width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; color: #fff; font-weight: 700; flex: none; }
   .status.good i { background: var(--road); } .status.warn i { background: var(--wait); color: #1d1500; } .status.bad i { background: var(--late); }
   .flow { display: flex; gap: 2px; height: 30px; border-radius: 6px; overflow: hidden; background: var(--rule-soft); }
   .flow div { min-width: 0; display: grid; place-items: center; font: 700 15px "Barlow Condensed", sans-serif; color: #fff; transition: flex-grow .5s ease; overflow: hidden; }
-  .flow .w { background: var(--wait); color: #1d1500; } .flow .b { background: var(--driver); } .flow .r { background: var(--road); }
+  .flow .w { background: var(--wait); color: #1d1500; } .flow .b { background: var(--driver); } .flow .r { background: var(--road); } .flow .l { background: var(--late); } .flow .g { background: var(--ink-3); }
   .flow-key { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+  .flow-key.four { grid-template-columns: repeat(4, 1fr); }
   .flow-key b { display: block; font: 600 22px/1.1 "Barlow Condensed", sans-serif; color: var(--ink); font-variant-numeric: tabular-nums; }
   .flow-key span { display: flex; align-items: center; gap: 6px; }
   #chart-box { position: relative; }
   #chart { width: 100%; height: 118px; display: block; overflow: visible; }
-  #chart-tip { position: absolute; top: -6px; pointer-events: none; background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: 3px 8px; font-size: 13px; box-shadow: var(--shadow); white-space: nowrap; transform: translateX(-50%); }
+  .tip { position: absolute; pointer-events: none; background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 9px; font-size: 13px; box-shadow: var(--shadow); white-space: nowrap; transform: translateX(-50%); z-index: 600; }
+  #chart-tip { top: -6px; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   td, th { padding: 5px 4px; text-align: right; border-bottom: 1px solid var(--rule-soft); font-variant-numeric: tabular-nums; }
   th { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
-  td:nth-child(2), th:nth-child(2) { text-align: left; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #feed-box td:nth-child(2), #feed-box th:nth-child(2) { text-align: left; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   tr.me td { background: color-mix(in srgb, var(--marking) 26%, transparent); font-weight: 700; }
   tr.out td { color: var(--ink-3); }
   #ticker { display: grid; gap: 7px; font-size: 14px; }
   #ticker div { display: grid; grid-template-columns: 62px 18px 1fr; gap: 6px; align-items: baseline; }
-  #ticker time { color: var(--ink-3); font: 500 13px "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums; letter-spacing: .03em; }
+  time { color: var(--ink-3); font: 500 13px "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums; letter-spacing: .03em; }
   #ticker i { font-style: normal; text-align: center; color: var(--ink-3); }
   #ticker .bad i { color: var(--late); } #ticker .warn i { color: var(--wait); } #ticker .win i { color: var(--driver); } #ticker .ok i { color: var(--road); }
+  /* rows of the quotes and gigs lists */
+  .rows { display: grid; }
+  .row { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--rule-soft); font-size: 14px; }
+  .row .lane { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .lane small { display: block; color: var(--ink-3); font-size: 12.5px; }
+  .row .amt { text-align: right; font: 600 16px "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .row .amt small { display: block; font: 500 12.5px "Barlow Semi Condensed", sans-serif; color: var(--ink-3); }
+  .chip { display: inline-flex; align-items: center; gap: 4px; font: 600 11.5px "Barlow Semi Condensed", sans-serif; letter-spacing: .06em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--rule); color: var(--ink-2); }
+  .chip.won { border-color: var(--road); color: var(--road); } .chip.lost { color: var(--ink-3); } .chip.pass { border-style: dashed; color: var(--ink-3); } .chip.open { border-color: var(--wait); color: var(--wait); }
+  .chip.booked { border-color: var(--driver); color: var(--driver); } .chip.urgent { border-color: var(--late); color: var(--late); }
+  .empty { color: var(--ink-3); font-size: 14px; padding: 6px 0; }
 
   /* timeline */
-  footer { grid-column: 1 / 3; background: var(--surface); border-top: 1px solid var(--rule); display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: stretch; }
+  footer { grid-column: 1 / 3; background: var(--surface); border-top: 1px solid var(--rule); display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: stretch; position: relative; }
   .controls { display: flex; align-items: center; gap: 8px; padding: 10px 14px 10px 18px; border-right: 1px solid var(--rule-soft); }
   .ctl { height: 38px; border-radius: 8px; border: 1px solid var(--rule); background: var(--raised); cursor: pointer; padding: 0 12px; font-weight: 600; white-space: nowrap; display: inline-flex; align-items: center; }
   .ctl.play { width: 46px; padding: 0; justify-content: center; font-size: 16px; background: var(--ink); color: var(--surface); border-color: var(--ink); }
   .ctl.on { background: color-mix(in srgb, var(--marking) 30%, var(--raised)); border-color: var(--marking); }
   .ctl.live { border-color: var(--late); color: var(--late); }
   .ctl select { border: 0; background: none; cursor: pointer; font-weight: 600; outline: none; }
-  #timeline { display: block; width: 100%; height: 92px; cursor: pointer; touch-action: none; }
+  .tl-wrap { position: relative; min-width: 0; padding: 8px 10px 6px 6px; }
+  #timeline { display: block; width: 100%; height: 104px; cursor: pointer; touch-action: none; }
+  #tl-tip { bottom: 100%; margin-bottom: 2px; }
+  #tl-tip b { font-weight: 600; }
   @media (max-width: 1000px) {
     #app { grid-template-columns: 1fr; grid-template-rows: auto 52vh auto auto; height: auto; min-height: 100%; }
     aside { grid-column: 1; grid-row: 4; border-left: 0; } footer { grid-row: 3; grid-template-columns: 1fr; } .controls { border-right: 0; flex-wrap: wrap; }
@@ -151,38 +177,96 @@
   </div>
 
   <aside>
-    <section>
-      <h2>Margin <small id="s-perorder"></small></h2>
-      <div class="hero" id="s-margin">€0</div>
-      <div class="hero-sub" id="s-margin-sub">&nbsp;</div>
-    </section>
-    <section class="grid">
-      <div class="kpi"><div class="k">Revenue</div><div class="v" id="s-revenue">€0</div><div class="s" id="s-revenue-sub"></div></div>
-      <div class="kpi"><div class="k">Driver fees</div><div class="v" id="s-fees">€0</div><div class="s" id="s-fees-sub"></div></div>
-      <div class="kpi"><div class="k">Orders won</div><div class="v" id="s-won">0</div><div class="s" id="s-won-sub"></div></div>
-      <div class="kpi"><div class="k">On time</div><div class="v" id="s-ontime">–</div><div class="s" id="s-ontime-sub"></div></div>
-    </section>
-    <section>
-      <h2>Cars right now <small id="s-done"></small></h2>
-      <div class="flow" id="flow"><div class="w"></div><div class="b"></div><div class="r"></div></div>
-      <div class="flow-key">
-        <div><b id="s-wait">0</b><span><span class="sw" style="background:var(--wait)"></span>No driver yet</span></div>
-        <div><b id="s-booked">0</b><span><span class="sw" style="background:var(--driver)"></span>Driver booked</span></div>
-        <div><b id="s-road">0</b><span><span class="sw" style="background:var(--road)"></span>On the road</span></div>
-      </div>
-    </section>
-    <section>
-      <h2>Margin through the week <small id="chart-now"></small></h2>
-      <div id="chart-box"><svg id="chart" role="img" aria-label="Margin over time"></svg><div id="chart-tip" hidden></div></div>
-    </section>
-    <section id="feed-box" hidden>
-      <h2><span id="feed-title">Final ranking</span><small id="feed-sub"></small></h2>
-      <table><thead><tr><th>#</th><th>Team</th><th>Margin</th><th>Orders</th><th>On time</th></tr></thead><tbody id="feed"></tbody></table>
-    </section>
-    <section>
-      <h2>Latest</h2>
-      <div id="ticker"></div>
-    </section>
+    <div class="tabs" role="tablist">
+      <button class="on" data-tab="overview" role="tab">Overview</button>
+      <button data-tab="quotes" role="tab">Quotes</button>
+      <button data-tab="gigs" role="tab">Gigs</button>
+    </div>
+
+    <div class="tab" id="tab-overview">
+      <section>
+        <h2>Margin <small id="s-perorder"></small></h2>
+        <div class="hero" id="s-margin">€0</div>
+        <div class="hero-sub" id="s-margin-sub">&nbsp;</div>
+      </section>
+      <section class="grid">
+        <div class="kpi"><div class="k">Revenue</div><div class="v" id="s-revenue">€0</div><div class="s" id="s-revenue-sub"></div></div>
+        <div class="kpi"><div class="k">Driver fees</div><div class="v" id="s-fees">€0</div><div class="s" id="s-fees-sub"></div></div>
+        <div class="kpi"><div class="k">Orders won</div><div class="v" id="s-won">0</div><div class="s" id="s-won-sub"></div></div>
+        <div class="kpi"><div class="k">On time</div><div class="v" id="s-ontime">–</div><div class="s" id="s-ontime-sub"></div></div>
+      </section>
+      <section>
+        <h2>Cars right now <small id="s-done"></small></h2>
+        <div class="flow" id="flow"><div class="w"></div><div class="b"></div><div class="r"></div></div>
+        <div class="flow-key">
+          <div><b id="s-wait">0</b><span><span class="sw" style="background:var(--wait)"></span>No driver yet</span></div>
+          <div><b id="s-booked">0</b><span><span class="sw" style="background:var(--driver)"></span>Driver booked</span></div>
+          <div><b id="s-road">0</b><span><span class="sw" style="background:var(--road)"></span>On the road</span></div>
+        </div>
+      </section>
+      <section>
+        <h2>Margin through the week <small id="chart-now"></small></h2>
+        <div id="chart-box"><svg id="chart" role="img" aria-label="Margin over time"></svg><div id="chart-tip" class="tip" hidden></div></div>
+      </section>
+      <section id="feed-box" hidden>
+        <h2><span id="feed-title">Final ranking</span><small id="feed-sub"></small></h2>
+        <table><thead><tr><th>#</th><th>Team</th><th>Margin</th><th>Orders</th><th>On time</th></tr></thead><tbody id="feed"></tbody></table>
+      </section>
+      <section>
+        <h2>Latest</h2>
+        <div id="ticker"></div>
+      </section>
+    </div>
+
+    <div class="tab" id="tab-quotes" hidden>
+      <section>
+        <h2>Dealers' requests <small id="q-rate"></small></h2>
+        <div class="flow" id="q-flow"><div class="r"></div><div class="g"></div><div class="w"></div><div class="b"></div></div>
+        <div class="flow-key four">
+          <div><b id="q-won">0</b><span><span class="sw" style="background:var(--road)"></span>Won</span></div>
+          <div><b id="q-lost">0</b><span><span class="sw" style="background:var(--ink-3)"></span>Lost</span></div>
+          <div><b id="q-pass">0</b><span><span class="sw" style="background:var(--wait)"></span>Passed</span></div>
+          <div><b id="q-open">0</b><span><span class="sw" style="background:var(--driver)"></span>Waiting</span></div>
+        </div>
+      </section>
+      <section class="grid three">
+        <div class="kpi"><div class="k">Requests in</div><div class="v" id="q-in">0</div><div class="s" id="q-in-sub"></div></div>
+        <div class="kpi"><div class="k">Price won at</div><div class="v" id="q-ratio">–</div><div class="s">× list price</div></div>
+        <div class="kpi"><div class="k">Price lost at</div><div class="v" id="q-lratio">–</div><div class="s">× list price</div></div>
+      </section>
+      <section>
+        <h2>Latest requests <small>our price · against the list price</small></h2>
+        <div class="rows" id="q-rows"></div>
+      </section>
+    </div>
+
+    <div class="tab" id="tab-gigs" hidden>
+      <section>
+        <h2>Gigs in the drivers' app <small id="g-rate"></small></h2>
+        <div class="flow" id="g-flow"><div class="w"></div><div class="b"></div><div class="r"></div></div>
+        <div class="flow-key">
+          <div><b id="g-open">0</b><span><span class="sw" style="background:var(--wait)"></span>Open</span></div>
+          <div><b id="g-booked">0</b><span><span class="sw" style="background:var(--driver)"></span>Booked</span></div>
+          <div><b id="g-working">0</b><span><span class="sw" style="background:var(--road)"></span>Being driven</span></div>
+        </div>
+      </section>
+      <section class="grid three">
+        <div class="kpi"><div class="k">Posted</div><div class="v" id="g-posted">0</div><div class="s" id="g-posted-sub"></div></div>
+        <div class="kpi"><div class="k">Booked at</div><div class="v" id="g-fee">–</div><div class="s">× typical fee</div></div>
+        <div class="kpi"><div class="k">Wait for a driver</div><div class="v" id="g-waitmed">–</div><div class="s">median</div></div>
+        <div class="kpi"><div class="k">Views</div><div class="v" id="g-views">0</div><div class="s" id="g-views-sub"></div></div>
+        <div class="kpi"><div class="k">Given back</div><div class="v" id="g-drops">0</div><div class="s">by drivers</div></div>
+        <div class="kpi"><div class="k">Ran out</div><div class="v" id="g-expired">0</div><div class="s">no driver in time</div></div>
+      </section>
+      <section>
+        <h2>Open now <small>fee shown · age · views</small></h2>
+        <div class="rows" id="g-open-rows"></div>
+      </section>
+      <section>
+        <h2>Latest bookings <small>fee · wait</small></h2>
+        <div class="rows" id="g-book-rows"></div>
+      </section>
+    </div>
   </aside>
 
   <footer>
@@ -194,7 +278,10 @@
       <button class="ctl on" id="skip" title="Run fast through hours in which nothing moves">Skip quiet hours</button>
       <button class="ctl live" id="live" hidden>● Go live</button>
     </div>
-    <canvas id="timeline" aria-label="Timeline of the week: days and hours"></canvas>
+    <div class="tl-wrap">
+      <canvas id="timeline" aria-label="Timeline of the week: days and hours"></canvas>
+      <div id="tl-tip" class="tip" hidden></div>
+    </div>
   </footer>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -208,19 +295,22 @@ const LIVE_TRIP = 1.15;   // while the delivery is not known yet, a trip takes t
 const APPROACH = 1.3;     // the same for a driver's way to the pickup
 const QUIET_AHEAD = 25;   // minutes without any event ahead that count as quiet
 const QUIET_FACTOR = 14;  // how much faster quiet time runs
+const PASS_RATIO = 3;     // a quote this many times the list price is a "no, thank you"
 const DAY_START = 6 * HOUR, DAY_END = 22 * HOUR, FIRST_HOUR = 8 * HOUR;
-const TICKER_ROWS = 12, FRAME_MS = 40, STATS_MS = 200, LIVE_EASE = 0.08;
+const TICKER_ROWS = 12, LIST_ROWS = 40, FRAME_MS = 40, STATS_MS = 200, LIVE_EASE = 0.08;
 const $ = (id) => document.getElementById(id);
 const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const euro = (cents) => (cents < 0 ? "−" : "") + "€" + Math.abs(Math.round(cents / 100)).toLocaleString("en-US");
 const hhmm = (t) => `${String(Math.floor(t % DAY / 60)).padStart(2, "0")}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 const clock = (t) => `${DAYS[Math.floor(t / DAY)] || "?"} ${hhmm(t)}`;
+const span = (m) => m < 90 ? `${Math.round(m)} min` : m < 2880 ? `${(m / 60).toFixed(1)} h` : `${Math.round(m / 1440)} d`;
+const median = (v) => { if (!v.length) return null; const s = [...v].sort((a, b) => a - b); return s[s.length >> 1]; };
 
 // ---- theme -----------------------------------------------------------------
 const C = {}; // the theme's colours, for the canvas and the map
 function readColours() {
   const cs = getComputedStyle(document.documentElement);
-  for (const k of ["paper", "surface", "raised", "rule", "rule-soft", "ink", "ink-2", "ink-3", "road", "driver", "wait", "late", "marking", "night", "ahead"]) C[k] = cs.getPropertyValue("--" + k).trim();
+  for (const k of ["paper", "surface", "raised", "rule", "rule-soft", "ink", "ink-2", "ink-3", "road", "driver", "wait", "late", "pale", "marking", "night", "ahead"]) C[k] = cs.getPropertyValue("--" + k).trim();
 }
 function setTheme(name) {
   document.documentElement.dataset.theme = name;
@@ -284,30 +374,61 @@ function along(r, f) {
 // ---- the run's log and the state at a minute -------------------------------
 let log = [], cursor = 0, dirty = true, S = null;
 const pickedAt = new Map(), deliveredAt = new Map(); // "order|leg" -> minute, known ahead in a replay
-let wonByHour = [], lateByHour = [], lastAct = 0;      // for the timeline
-let T = 0, t0 = 0, tMax = 0, playing = true, following = false, ended = true, runID = "", source = null, skipQuiet = true, scrubbing = false;
+const H = { req: [], won: [], done: [], late: [] };    // per hour, for the timeline
+const D = { won: [], margin: [] };                     // per day, for the day headers
+let lastAct = 0;
+let T = 0, t0 = 0, tMax = 0, playing = true, following = false, ended = true, runID = "", source = null, skipQuiet = true, scrubbing = false, tab = "overview";
 
 function fresh() {
-  return { orders: new Map(), gigs: new Map(), legGig: new Map(), drivers: new Map(), money: { margin: 0, revenue: 0, fees: 0, refunds: 0 },
-    n: { requests: 0, won: 0, lost: 0, delivered: 0, late: 0, cancelled: 0 }, series: [], ticker: [] };
+  return { orders: new Map(), reqs: new Map(), early: new Map(), gigs: new Map(), legGig: new Map(), drivers: new Map(), money: { margin: 0, revenue: 0, fees: 0, refunds: 0 },
+    n: { requests: 0, won: 0, lost: 0, passed: 0, delivered: 0, late: 0, cancelled: 0, posted: 0, reposts: 0, booked: 0, drops: 0, expired: 0, views: 0 },
+    sum: { wonRatio: 0, lostRatio: 0, lostN: 0, fee: 0, typical: 0 }, waits: [], series: [], ticker: [] };
 }
 function gigOf(id) { // a gig's record, made on first mention: its post and its booking can share a minute
   let g = S.gigs.get(id);
-  if (!g) { g = { id, legs: [], status: "open", driver: null, startedAt: null, from: null, lastPlace: null, lastAt: null }; S.gigs.set(id, g); }
+  if (!g) { g = { id, legs: [], status: "open", driver: null, postedAt: null, plan: [], views: 0, fee: 0, bookedAt: null, startedAt: null, from: null, lastPlace: null, lastAt: null }; S.gigs.set(id, g); }
   return g;
 }
 function note(t, text, cls, icon) { S.ticker.push({ t, text, cls, icon }); if (S.ticker.length > 60) S.ticker.splice(0, 20); }
 function legsOf(order) { return (order.legs || []).map((l) => ({ from: l.pickup.placeId, to: l.delivery.placeId, picked: null, delivered: null })); }
 function name(id) { return (places[id] && places[id].name) || id; }
+// The typical fee of a gig's cars; unknown (0) when a car is one of two in a trade-in, whose fee is not split.
+function typicalOf(g) { let v = 0; for (const l of g.legs) { const r = S.reqs.get(l.orderId); if (!r || r.legs > 1) return 0; v += r.ref; } return v; }
+function priced(r, prices) { // our answer to a request: the option priced lowest against its list price
+  let best = Infinity, price = 0;
+  for (const k in prices) { const list = r.lists[k]; if (list && prices[k] / list < best) { best = prices[k] / list; price = prices[k]; } }
+  if (best === Infinity) return;
+  const was = r.passed; r.ratio = best; r.price = price; r.passed = best >= PASS_RATIO;
+  if (r.passed && !was) S.n.passed++; else if (!r.passed && was) S.n.passed--;
+}
+function laneOf(g) { const l = g.legs[0], o = l && S.orders.get(l.orderId), leg = o && o.legs[l.leg]; return leg ? `${name(leg.from)} → ${name(leg.to)}${g.legs.length > 1 ? ` +${g.legs.length - 1}` : ""}` : g.id; }
+function feeNow(g, t) { let fee = g.plan.length ? g.plan[0].feeCents : 0; for (const s of g.plan) if (s.at <= t) fee = s.feeCents; return fee; }
 
 function apply(it) {
   const e = it.e, t = it.t;
   switch (it.k) {
-    case "price_request": S.n.requests++; break;
-    case "order_lost": S.n.lost++; break;
+    case "price_request": {
+      const r = e.request, leg = r.legs[0];
+      S.reqs.set(r.id, { id: r.id, at: t, from: leg.pickup.placeId, to: leg.delivery.placeId, legs: r.legs.length, ref: r.referenceFeeCents || 0,
+        lists: Object.fromEntries((r.options || []).map((o) => [o.kind, o.listPriceCents])), price: 0, ratio: 0, passed: false, outcome: "open" });
+      S.n.requests++;
+      if (S.early.has(r.id)) { priced(S.reqs.get(r.id), S.early.get(r.id)); S.early.delete(r.id); } // the quote went out in the same minute
+      break;
+    }
+    case "quoted": {
+      const r = S.reqs.get(it.req);
+      if (r) priced(r, it.prices); else S.early.set(it.req, it.prices);
+      break;
+    }
+    case "order_lost": {
+      const r = S.reqs.get(e.requestId); S.n.lost++;
+      if (r) { r.outcome = "lost"; if (!r.passed && r.ratio) { S.sum.lostRatio += r.ratio; S.sum.lostN++; } }
+      break;
+    }
     case "order_won": {
-      const o = e.order;
+      const o = e.order, r = S.reqs.get(o.id);
       S.orders.set(o.id, { id: o.id, price: o.priceCents, deadline: o.deadline, legs: legsOf(o), wonAt: t, late: false, cancelled: false, urgent: false });
+      if (r) { r.outcome = "won"; r.price = o.priceCents; const list = r.lists[o.option]; if (list) r.ratio = o.priceCents / list; S.sum.wonRatio += r.ratio; }
       S.n.won++; note(t, `Won ${name(o.legs[0].pickup.placeId)} → ${name(o.legs[0].delivery.placeId)} for ${euro(o.priceCents)}`, "win", "＋");
       break;
     }
@@ -317,16 +438,28 @@ function apply(it) {
       legsOf(e.order).forEach((l, i) => { if (o.legs[i] && o.legs[i].delivered === null) { o.legs[i].to = l.to; if (o.legs[i].picked === null) o.legs[i].from = l.from; } });
       note(t, `Dealer changed the plan: now to ${name(o.legs[0].to)}`, "warn", "↺"); break;
     }
-    case "order_cancelled": { const o = S.orders.get(e.orderId); if (o && !o.cancelled) { o.cancelled = true; S.n.cancelled++; note(t, `Dealer cancelled an order from ${name(o.legs[0].from)}`, "warn", "×"); } break; }
-    case "deadline_close": { const o = S.orders.get(e.orderId); if (o) o.urgent = true; break; }
-    case "posted": {
-      gigOf(it.gig).legs = it.legs;
-      for (const l of it.legs) S.legGig.set(l.orderId + "|" + l.leg, it.gig);
+    case "order_cancelled": {
+      const o = S.orders.get(e.orderId); if (o && !o.cancelled) { o.cancelled = true; S.n.cancelled++; note(t, `Dealer cancelled an order from ${name(o.legs[0].from)}`, "warn", "×"); }
+      for (const c of e.gigs || []) if (c.outcome === "withdrawn" || c.outcome === "released") gigOf(c.gigId).status = "gone"; // the gig left the app with the order
       break;
     }
-    case "withdrawn": case "gig_expired": { const g = gigOf(it.gig || e.gigId); if (g.status === "open") g.status = "gone"; break; }
-    case "gig_booked": { const g = gigOf(e.gigId); g.status = "booked"; g.driver = e.driverId; break; }
-    case "gig_dropped": case "no_show": { const g = gigOf(e.gigId); g.status = "open"; g.driver = null; note(t, "A driver gave a booking back", "warn", "↩"); break; }
+    case "deadline_close": { const o = S.orders.get(e.orderId); if (o) o.urgent = true; break; }
+    case "posted": {
+      const g = gigOf(it.gig); g.legs = it.legs; g.postedAt = t; g.plan = it.plan; S.n.posted++;
+      for (const l of it.legs) { const key = l.orderId + "|" + l.leg; if (S.legGig.has(key)) S.n.reposts++; S.legGig.set(key, it.gig); }
+      break;
+    }
+    case "repriced": { const g = gigOf(it.gig); g.plan = it.plan; break; }
+    case "viewed": { gigOf(it.gig).views++; S.n.views++; break; }
+    case "withdrawn": { const g = gigOf(it.gig); if (g.status === "open") g.status = "gone"; break; }
+    case "gig_expired": { const g = gigOf(e.gigId); if (g.status === "open") { g.status = "gone"; S.n.expired++; } break; }
+    case "gig_booked": {
+      const g = gigOf(e.gigId); g.status = "booked"; g.driver = e.driverId; g.fee = e.feeCents || 0; g.bookedAt = t; S.n.booked++;
+      const typical = typicalOf(g); if (typical > 0) { S.sum.fee += g.fee; S.sum.typical += typical; }
+      if (g.postedAt !== null) S.waits.push(t - g.postedAt);
+      break;
+    }
+    case "gig_dropped": case "no_show": { const g = gigOf(e.gigId); g.status = "open"; g.driver = null; S.n.drops++; note(t, "A driver gave a booking back", "warn", "↩"); break; }
     case "gig_started": {
       const g = gigOf(e.gigId), seen = S.drivers.get(e.driverId);
       g.status = "working"; g.driver = e.driverId; g.startedAt = t;
@@ -345,7 +478,10 @@ function apply(it) {
         o.legs[e.leg].delivered = t; o.legs[e.leg].to = e.placeId;
         if (o.legs.every((l) => l.delivered !== null)) { S.n.delivered++; if (t <= o.deadline) note(t, `Delivered in ${name(e.placeId)}, on time`, "ok", "✓"); }
       }
-      if (g) { g.lastPlace = e.placeId; g.lastAt = t; if (g.driver) S.drivers.set(g.driver, { place: e.placeId, at: t }); }
+      if (g) {
+        g.lastPlace = e.placeId; g.lastAt = t; if (g.driver) S.drivers.set(g.driver, { place: e.placeId, at: t });
+        if (g.legs.every((l) => { const x = S.orders.get(l.orderId); return !x || x.cancelled || (x.legs[l.leg] && x.legs[l.leg].delivered !== null); })) g.status = "done";
+      }
       break;
     }
     case "ledger": {
@@ -368,22 +504,26 @@ function advance() { // bring the state to minute T
   if (dirty || (cursor > 0 && log[cursor - 1].t > T)) { S = fresh(); cursor = 0; dirty = false; }
   while (cursor < log.length && log[cursor].t <= T) apply(log[cursor++]);
 }
-function bump(list, t) { const h = Math.floor(t / HOUR); list[h] = (list[h] || 0) + 1; }
+function bump(list, t, by = 1, unit = HOUR) { const i = Math.floor(t / unit); list[i] = (list[i] || 0) + by; }
 function add(msg) { // one message of the run's stream
   let it = null;
-  if (msg.a) {
+  if (msg.v) it = { t: msg.v[0], k: "viewed", gig: msg.v[1] };
+  else if (msg.a) {
     const a = msg.a, act = a.action || {};
     if (!a.result || !a.result.ok) return;
     if (act.type === "post") {
       const legs = (act.stops || []).filter((s) => s.kind === "pickup").map((s) => ({ orderId: s.orderId, leg: s.leg || 0 }));
-      it = { t: a.at, k: "posted", gig: a.result.id, legs };
+      it = { t: a.at, k: "posted", gig: a.result.id, legs, plan: act.schedule || [] };
     } else if (act.type === "withdraw") it = { t: a.at, k: "withdrawn", gig: act.gigId };
+    else if (act.type === "reprice") it = { t: a.at, k: "repriced", gig: act.gigId, plan: act.schedule || [] };
+    else if (act.type === "quote") it = { t: a.at, k: "quoted", req: act.requestId, prices: act.prices || {} };
   } else if (msg.e) {
     const e = msg.e; it = { t: e.at, k: e.kind, e };
     if (e.kind === "picked_up") pickedAt.set(e.orderId + "|" + e.leg, e.at);
-    if (e.kind === "delivered") deliveredAt.set(e.orderId + "|" + e.leg, e.at);
-    if (e.kind === "order_won") bump(wonByHour, e.at);
-    if (e.kind === "ledger" && e.line && e.line.kind === "late_refund") bump(lateByHour, e.at);
+    else if (e.kind === "delivered") { deliveredAt.set(e.orderId + "|" + e.leg, e.at); bump(H.done, e.at); }
+    else if (e.kind === "price_request") bump(H.req, e.at);
+    else if (e.kind === "order_won") { bump(H.won, e.at); bump(D.won, e.at, 1, DAY); }
+    else if (e.kind === "ledger" && e.line) { bump(D.margin, e.at, e.line.cents, DAY); if (e.line.kind === "late_refund") bump(H.late, e.at); }
     if (e.kind !== "ledger" && e.kind !== "forecast" && e.at > lastAct) lastAct = e.at;
   }
   if (!it || typeof it.t !== "number") return;
@@ -395,7 +535,7 @@ function add(msg) { // one message of the run's stream
   if (it.t > tMax) tMax = it.t;
 }
 // The week on screen ends with the day of the last thing that happened: the world idles on for days after it.
-function span() { return [t0, Math.max(t0 + DAY, Math.ceil((Math.max(lastAct, t0) + 1) / DAY) * DAY)]; }
+function week() { return [t0, Math.max(t0 + DAY, Math.ceil((Math.max(lastAct, t0) + 1) / DAY) * DAY)]; }
 function endOfShow() { return ended ? Math.min(tMax, lastAct + HOUR) : tMax; }
 
 // ---- drawing the map -------------------------------------------------------
@@ -473,14 +613,16 @@ function draw() {
     if (m.used) continue;
     layers.moving.removeLayer(m.dot); if (m.line) layers.routes.removeLayer(m.line); movers.delete(key);
   }
-  for (const id in siteMarks) { // a badge with the number of cars waiting at the site
+  for (const id in siteMarks) { // the number of cars waiting at a site, with the town's name beside it
     const w = waiting[id], mark = siteMarks[id], sig = w ? `${w.n}/${w.open}/${w.urgent}` : "";
     if (mark.sig === sig) continue;
     mark.sig = sig;
     if (mark.badge) { layers.sites.removeLayer(mark.badge); mark.badge = null; }
-    if (!w) continue;
-    const cls = w.urgent ? "urgent" : w.open ? "wait" : "booked", label = (w.urgent ? "! " : "") + w.n;
-    mark.badge = L.marker([places[id].lat, places[id].lon], { icon: L.divIcon({ className: "", html: `<div class="site ${cls}">${label}</div>`, iconSize: [0, 0], iconAnchor: [11, 11] }), keyboard: false })
+    if (!w) { mark.dot.openTooltip(); continue; }
+    mark.dot.closeTooltip(); // the badge carries the name while it is there
+    const cls = w.urgent ? "urgent" : w.open ? "wait" : "booked";
+    const html = `<div class="site-wrap"><span class="site ${cls}">${w.urgent ? "<b>!</b>" : ""}${w.n}</span><span class="town">${esc(name(id))}</span></div>`;
+    mark.badge = L.marker([places[id].lat, places[id].lon], { icon: L.divIcon({ className: "", html, iconSize: [0, 0] }), keyboard: false })
       .bindTooltip(`${esc(name(id))}: ${w.n} car${w.n > 1 ? "s" : ""} waiting, ${w.open} without a driver${w.urgent ? ", deadline close" : ""}`).addTo(layers.sites);
   }
   return { road, wait, booked };
@@ -488,41 +630,82 @@ function draw() {
 
 // ---- side panel ------------------------------------------------------------
 let lastStats = 0, counts = { road: 0, wait: 0, booked: 0 };
+const shown = {};
 function put(id, v) { const el = $(id); if (el.textContent !== v) el.textContent = v; }
+function html(id, v) { if (shown[id] !== v) { $(id).innerHTML = v; shown[id] = v; } }
+function flow(id, values) {
+  const parts = $(id).children, tot = values.reduce((a, b) => a + b, 0);
+  values.forEach((v, i) => { parts[i].style.flexGrow = tot ? v : 0; parts[i].style.display = v ? "" : "none"; parts[i].textContent = v > 0 && v / tot > 0.08 ? v : ""; });
+}
 function stats(now) {
   if (now - lastStats < STATS_MS) return; lastStats = now;
-  const m = S.money, n = S.n, kept = n.won - n.cancelled;
   put("clock-day", DAY_NAMES[Math.floor(T / DAY)] || ""); put("clock-time", hhmm(T));
+  if (tab === "overview") overview(); else if (tab === "quotes") quotes(); else gigs();
+  const liveNow = !ended && following;
+  html("mode", liveNow ? "<i></i>Live" : !ended ? "Live · behind" : "Replay"); $("mode").className = "pill" + (liveNow ? " live" : "");
+  $("live").hidden = ended || following;
+  const atEnd = ended && T >= endOfShow() - 1;
+  put("play", atEnd ? "↻" : playing ? "❚❚" : "▶"); $("play").title = atEnd ? "Play again" : playing ? "Pause" : "Play";
+}
+function overview() {
+  const m = S.money, n = S.n, kept = n.won - n.cancelled;
   put("s-margin", euro(m.margin));
   put("s-perorder", n.delivered ? `${euro(m.margin / n.delivered)} per delivered order` : "");
   put("s-margin-sub", m.revenue > 0 ? `${Math.round(100 * m.margin / m.revenue)}% of revenue kept${m.refunds > 0 ? ` · ${euro(m.refunds)} refunded for late cars` : ""}` : "Revenue arrives when a car is delivered");
   put("s-revenue", euro(m.revenue)); put("s-revenue-sub", n.delivered ? `${euro(m.revenue / n.delivered)} per order` : "");
   put("s-fees", euro(m.fees)); put("s-fees-sub", m.revenue > 0 ? `${Math.round(100 * m.fees / m.revenue)}% of revenue` : "");
   const decided = n.won + n.lost;
-  put("s-won", String(n.won)); put("s-won-sub", decided ? `${Math.round(100 * n.won / decided)}% of ${decided} quotes` : "");
+  put("s-won", String(n.won)); put("s-won-sub", decided ? `${Math.round(100 * n.won / decided)}% of ${decided} requests` : "");
   const share = n.delivered ? 1 - Math.min(n.late, n.delivered) / n.delivered : null; // of the orders delivered so far
   put("s-ontime", share === null ? "–" : (100 * share).toFixed(1) + "%");
   const st = share === null ? null : share >= 0.95 ? ["good", "✓", "comfortable"] : share >= 0.9 ? ["warn", "!", "near the 90% minimum"] : ["bad", "✕", "under the 90% minimum"];
-  const sub = st ? `<span class="status ${st[0]}"><i>${st[1]}</i>${n.late} late · ${st[2]}</span>` : "";
-  if ($("s-ontime-sub").innerHTML !== sub) $("s-ontime-sub").innerHTML = sub;
+  html("s-ontime-sub", st ? `<span class="status ${st[0]}"><i>${st[1]}</i>${n.late} late · ${st[2]}</span>` : "");
   put("s-road", String(counts.road)); put("s-wait", String(counts.wait)); put("s-booked", String(counts.booked));
   put("s-done", `${n.delivered} of ${kept} delivered`);
-  const parts = $("flow").children, tot = counts.wait + counts.booked + counts.road;
-  [counts.wait, counts.booked, counts.road].forEach((v, i) => { parts[i].style.flexGrow = tot ? v : 0; parts[i].style.display = v ? "" : "none"; parts[i].textContent = v > 0 && v / tot > 0.08 ? v : ""; });
-  const rows = S.ticker.slice(-TICKER_ROWS).reverse().map((r) => `<div class="${r.cls || ""}"><time>${clock(r.t)}</time><i>${r.icon || "·"}</i><span>${esc(r.text)}</span></div>`).join("");
-  if (rows !== lastRows) { $("ticker").innerHTML = rows; lastRows = rows; }
+  flow("flow", [counts.wait, counts.booked, counts.road]);
+  html("ticker", S.ticker.slice(-TICKER_ROWS).reverse().map((r) => `<div class="${r.cls || ""}"><time>${clock(r.t)}</time><i>${r.icon || "·"}</i><span>${esc(r.text)}</span></div>`).join(""));
   chart();
-  const liveNow = !ended && following, modeHTML = liveNow ? "<i></i>Live" : !ended ? "Live · behind" : "Replay";
-  if (modeHTML !== lastMode) { $("mode").className = "pill" + (liveNow ? " live" : ""); $("mode").innerHTML = modeHTML; lastMode = modeHTML; }
-  $("live").hidden = ended || following;
-  const atEnd = ended && T >= endOfShow() - 1;
-  put("play", atEnd ? "↻" : playing ? "❚❚" : "▶"); $("play").title = atEnd ? "Play again" : playing ? "Pause" : "Play";
 }
-let lastRows = "", lastMode = "";
+function quotes() { // what dealers asked for, what we answered, what they took
+  const n = S.n, open = Math.max(0, n.requests - n.won - n.lost), lostPriced = Math.max(0, n.lost - n.passed);
+  flow("q-flow", [n.won, lostPriced, n.passed, open]);
+  put("q-won", String(n.won)); put("q-lost", String(lostPriced)); put("q-pass", String(n.passed)); put("q-open", String(open));
+  const priced = n.won + lostPriced;
+  put("q-rate", priced ? `${Math.round(100 * n.won / priced)}% of priced quotes won` : "");
+  put("q-in", String(n.requests)); put("q-in-sub", n.requests ? `${Math.round(100 * n.passed / n.requests)}% passed` : "");
+  put("q-ratio", n.won ? (S.sum.wonRatio / n.won).toFixed(2) : "–"); put("q-lratio", S.sum.lostN ? (S.sum.lostRatio / S.sum.lostN).toFixed(2) : "–");
+  const list = [...S.reqs.values()].slice(-LIST_ROWS).reverse();
+  html("q-rows", list.length ? list.map((r) => {
+    const chip = r.outcome === "won" ? '<span class="chip won">✓ Won</span>' : r.passed ? '<span class="chip pass">Passed</span>' : r.outcome === "lost" ? '<span class="chip lost">Lost</span>' : '<span class="chip booked">Waiting</span>';
+    const price = r.passed || !r.price ? "–" : euro(r.price);
+    return `<div class="row"><time>${clock(r.at)}</time><div class="lane">${esc(name(r.from))} → ${esc(name(r.to))}<small>${chip}</small></div><div class="amt">${price}<small>${r.passed || !r.ratio ? "no offer" : r.ratio.toFixed(2) + "× list"}</small></div></div>`;
+  }).join("") : '<div class="empty">No request yet.</div>');
+}
+function gigs() { // what is in the drivers' app, and how it went
+  const n = S.n, all = [...S.gigs.values()], open = all.filter((g) => g.status === "open"), booked = all.filter((g) => g.status === "booked"), working = all.filter((g) => g.status === "working");
+  flow("g-flow", [open.length, booked.length, working.length]);
+  put("g-open", String(open.length)); put("g-booked", String(booked.length)); put("g-working", String(working.length));
+  put("g-rate", n.posted ? `${Math.round(100 * n.booked / n.posted)}% of posts booked` : "");
+  put("g-posted", String(n.posted)); put("g-posted-sub", n.reposts ? `${n.reposts} posted again` : "");
+  put("g-fee", S.sum.typical ? (S.sum.fee / S.sum.typical).toFixed(2) : "–");
+  const med = median(S.waits); put("g-waitmed", med === null ? "–" : span(med));
+  put("g-views", n.views.toLocaleString("en-US")); put("g-views-sub", n.booked ? `${Math.round(n.views / n.booked)} per booking` : "");
+  put("g-drops", String(n.drops)); put("g-expired", String(n.expired));
+  open.sort((a, b) => a.postedAt - b.postedAt);
+  html("g-open-rows", open.length ? open.slice(0, LIST_ROWS).map((g) => {
+    const typical = typicalOf(g), fee = feeNow(g, T), old = T - g.postedAt > 6 * HOUR;
+    return `<div class="row"><time>${clock(g.postedAt)}</time><div class="lane">${esc(laneOf(g))}<small><span class="chip ${old ? "urgent" : "open"}">${old ? "! " : ""}open ${span(T - g.postedAt)}</span> · ${g.views} views</small></div><div class="amt">${euro(fee)}<small>${typical ? (fee / typical).toFixed(2) + "× typical" : ""}</small></div></div>`;
+  }).join("") : '<div class="empty">Every gig has a driver.</div>');
+  const taken = all.filter((g) => g.bookedAt !== null).sort((a, b) => b.bookedAt - a.bookedAt).slice(0, LIST_ROWS);
+  html("g-book-rows", taken.length ? taken.map((g) => {
+    const typical = typicalOf(g);
+    return `<div class="row"><time>${clock(g.bookedAt)}</time><div class="lane">${esc(laneOf(g))}<small>${g.postedAt !== null ? "after " + span(g.bookedAt - g.postedAt) : ""} · ${g.views} views</small></div><div class="amt">${euro(g.fee)}<small>${typical ? (g.fee / typical).toFixed(2) + "× typical" : ""}</small></div></div>`;
+  }).join("") : '<div class="empty">No booking yet.</div>');
+}
 // The margin through the week: one line, a zero rule, day rules; the point under the pointer is named.
-const CH = { w: 360, h: 118, top: 8, bottom: 20 };
+const CH = { w: 372, h: 118, top: 8, bottom: 20 };
 function chartScale() {
-  const s = S.series, [a, b] = span(); let lo = 0, hi = 100;
+  const s = S.series, [a, b] = week(); let lo = 0, hi = 100;
   for (const [, v] of s) { if (v < lo) lo = v; if (v > hi) hi = v; }
   const x = (t) => (t - a) / (b - a) * CH.w, y = (v) => CH.top + (1 - (v - lo) / (hi - lo)) * (CH.h - CH.top - CH.bottom);
   return { x, y, a, b };
@@ -544,7 +727,7 @@ function chart() {
     g += `<circle cx="${k.x(last[0])}" cy="${k.y(last[1])}" r="4" fill="${C.driver}" stroke="${C.surface}" stroke-width="2"/>`;
     put("chart-now", `${euro(last[1])} at ${clock(last[0])}`);
   } else put("chart-now", "");
-  svg.innerHTML = g;
+  html("chart", g);
 }
 $("chart-box").addEventListener("pointermove", (ev) => {
   const s = S && S.series; if (!s || s.length < 2) return;
@@ -554,62 +737,90 @@ $("chart-box").addEventListener("pointermove", (ev) => {
   tip.hidden = false; tip.textContent = `${clock(p[0])} · ${euro(p[1])}`; tip.style.left = Math.max(60, Math.min(box.width - 60, k.x(p[0]) / CH.w * box.width)) + "px";
 });
 $("chart-box").addEventListener("pointerleave", () => { $("chart-tip").hidden = true; });
+for (const b of document.querySelectorAll(".tabs button")) b.onclick = () => {
+  tab = b.dataset.tab; lastStats = 0;
+  for (const o of document.querySelectorAll(".tabs button")) o.classList.toggle("on", o === b);
+  for (const name of ["overview", "quotes", "gigs"]) $("tab-" + name).hidden = name !== tab;
+};
 
-// ---- timeline: day blocks, hours, what happened in each hour ----------------
-const tl = { el: $("timeline"), ctx: $("timeline").getContext("2d"), w: 0, h: 0, pad: 14 };
+// ---- timeline: a card per day, a tick per hour; requests and wins above the line, deliveries below
+const tl = { el: $("timeline"), ctx: $("timeline").getContext("2d"), w: 0, h: 0, pad: 4, hover: null };
+const TL = { head: 22, foot: 16, gap: 6 };
 function sizeTimeline() {
   const r = tl.el.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   tl.w = r.width; tl.h = r.height; tl.el.width = Math.round(r.width * dpr); tl.el.height = Math.round(r.height * dpr);
   tl.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 new ResizeObserver(sizeTimeline).observe(tl.el);
-function tlX(t) { const [a, b] = span(); return tl.pad + (t - a) / (b - a) * (tl.w - 2 * tl.pad); }
-function tlT(x) { const [a, b] = span(); return a + Math.max(0, Math.min(1, (x - tl.pad) / (tl.w - 2 * tl.pad))) * (b - a); }
+function tlX(t) { const [a, b] = week(); return tl.pad + (t - a) / (b - a) * (tl.w - 2 * tl.pad); }
+function tlT(x) { const [a, b] = week(); return a + Math.max(0, Math.min(1, (x - tl.pad) / (tl.w - 2 * tl.pad))) * (b - a); }
 function drawTimeline() {
-  const c = tl.ctx, [a, b] = span(), top = 22, base = tl.h - 20, hourW = tlX(a + HOUR) - tlX(a);
+  const c = tl.ctx, [a, b] = week();
   if (!tl.w) return;
   c.clearRect(0, 0, tl.w, tl.h);
-  let peak = 4; for (let h = a / HOUR; h < b / HOUR; h++) peak = Math.max(peak, wonByHour[h] || 0);
-  const limit = endOfShow();
-  for (let d = a; d < b; d += DAY) {
-    const x0 = tlX(d), x1 = tlX(d + DAY);
+  const top = TL.head, bottom = tl.h - TL.foot, mid = Math.round(top + (bottom - top) * 0.62), hourW = tlX(a + HOUR) - tlX(a);
+  let upPeak = 4, downPeak = 4;
+  for (let h = a / HOUR; h < b / HOUR; h++) { upPeak = Math.max(upPeak, H.req[h] || 0); downPeak = Math.max(downPeak, H.done[h] || 0); }
+  const upScale = (mid - top - 6) / upPeak, downScale = (bottom - mid - 4) / downPeak, limit = endOfShow();
+  c.textBaseline = "alphabetic";
+  for (let d = a; d < b; d += DAY) { // one card per day
+    const x0 = tlX(d) + TL.gap / 2, x1 = tlX(d + DAY) - TL.gap / 2, w = x1 - x0, now = T >= d && T < d + DAY;
+    c.fillStyle = C.raised; c.strokeStyle = now ? C["ink-3"] : C.rule; c.lineWidth = 1;
+    c.beginPath(); c.roundRect(x0 + .5, .5, w - 1, tl.h - 1, 8); c.fill(); c.stroke();
+    c.save(); c.beginPath(); c.roundRect(x0 + 1, 1, w - 2, tl.h - 2, 7); c.clip();
     c.fillStyle = C.night; // the night: before 06:00 and after 22:00
-    c.fillRect(x0, top, tlX(d + DAY_START) - x0, base - top); c.fillRect(tlX(d + DAY_END), top, x1 - tlX(d + DAY_END), base - top);
-    c.strokeStyle = C.rule; c.lineWidth = 1; c.beginPath(); c.moveTo(Math.round(x0) + .5, 4); c.lineTo(Math.round(x0) + .5, tl.h - 4); c.stroke();
-    c.fillStyle = C.ink; c.font = '700 14px "Barlow Condensed", sans-serif'; c.textBaseline = "alphabetic"; c.textAlign = "left";
-    c.fillText((x1 - x0 > 110 ? DAY_NAMES : DAYS)[d / DAY].toUpperCase(), x0 + 7, 16);
-    for (let h = 1; h < 24; h++) { // hours: a tick each, a longer one and a number every six (every three when there is room)
-      const x = Math.round(tlX(d + h * HOUR)) + .5, major = h % 6 === 0, mid = h % 3 === 0;
-      c.strokeStyle = major ? C["ink-3"] : C.rule; c.beginPath(); c.moveTo(x, base); c.lineTo(x, base + (major ? 7 : mid ? 5 : 3)); c.stroke();
-      if ((major && hourW > 3.2) || (mid && hourW > 9)) { c.fillStyle = C["ink-3"]; c.font = '500 11px "Barlow Condensed", sans-serif'; c.textAlign = "center"; c.fillText(String(h).padStart(2, "0"), x, tl.h - 3); }
+    c.fillRect(x0, top, tlX(d + DAY_START) - x0, bottom - top); c.fillRect(tlX(d + DAY_END), top, x1 - tlX(d + DAY_END), bottom - top);
+    if (limit < d + DAY) { c.fillStyle = C.ahead; const xs = Math.max(x0, tlX(limit)); c.fillRect(xs, 0, x1 - xs, tl.h); } // not played yet, or nothing left
+    c.restore();
+    const di = d / DAY, won = D.won[di] || 0;
+    c.fillStyle = now ? C.ink : C["ink-2"]; c.font = '700 13px "Barlow Condensed", sans-serif'; c.textAlign = "left";
+    c.fillText((w > 120 ? DAY_NAMES : DAYS)[di].toUpperCase(), x0 + 9, 15);
+    if (won && w > 96) { // the day in two numbers
+      c.fillStyle = C["ink-3"]; c.font = '500 12px "Barlow Condensed", sans-serif'; c.textAlign = "right";
+      c.fillText(`${won} won${w > 150 ? " · " + euro(D.margin[di] || 0) : ""}`, x1 - 9, 15);
     }
+    for (let h = 3; h < 24; h += 3) { // hours
+      const x = Math.round(tlX(d + h * HOUR)) + .5, major = h % 6 === 0;
+      if (!major && hourW < 5) continue;
+      c.strokeStyle = C.rule; c.beginPath(); c.moveTo(x, bottom); c.lineTo(x, bottom + (major ? 4 : 2)); c.stroke();
+      if (hourW > 3 && (major || hourW > 9)) { c.fillStyle = C["ink-3"]; c.font = '500 10.5px "Barlow Condensed", sans-serif'; c.textAlign = "center"; c.fillText(String(h).padStart(2, "0"), x, tl.h - 4); }
+    }
+    c.strokeStyle = C.rule; c.beginPath(); c.moveTo(x0 + 6, mid + .5); c.lineTo(x1 - 6, mid + .5); c.stroke();
   }
-  const xe = Math.round(tlX(b)) + .5; c.strokeStyle = C.rule; c.beginPath(); c.moveTo(xe, 4); c.lineTo(xe, tl.h - 4); c.stroke();
-  c.beginPath(); c.moveTo(tl.pad, base + .5); c.lineTo(tl.w - tl.pad, base + .5); c.stroke();
-  const gap = hourW > 5 ? 2 : hourW > 2.5 ? 1 : 0, bw = Math.max(1, hourW - gap), round = Math.min(3, bw / 2);
-  for (let h = a / HOUR; h < b / HOUR; h++) { // orders won in each hour; a red cap where cars came in late
-    const won = wonByHour[h] || 0, late = lateByHour[h] || 0, x = tlX(h * HOUR) + gap / 2, played = h * HOUR < T;
-    if (won) {
-      const hgt = Math.max(2, won / peak * (base - top - 8));
-      c.globalAlpha = played ? 1 : .32; c.fillStyle = C.driver;
-      c.beginPath(); c.roundRect(x, base - hgt, bw, hgt, [round, round, 0, 0]); c.fill();
-    }
-    if (late) { c.globalAlpha = played ? 1 : .4; c.fillStyle = C.late; c.fillRect(x, top + 1, bw, 4); }
+  const gap = hourW > 6 ? 2 : hourW > 3 ? 1 : 0, bw = Math.max(1, hourW - gap), round = Math.min(2.5, bw / 2);
+  for (let h = a / HOUR; h < b / HOUR; h++) {
+    const req = H.req[h] || 0, won = H.won[h] || 0, done = H.done[h] || 0, late = H.late[h] || 0;
+    if (!req && !done) continue;
+    const x = tlX(h * HOUR) + gap / 2, played = h * HOUR < T;
+    c.globalAlpha = played ? 1 : .38;
+    if (req) { c.fillStyle = C.pale; c.beginPath(); c.roundRect(x, mid - req * upScale, bw, req * upScale, [round, round, 0, 0]); c.fill(); }   // asked
+    if (won) { c.fillStyle = C.driver; c.beginPath(); c.roundRect(x, mid - won * upScale, bw, won * upScale, [round, round, 0, 0]); c.fill(); } // won
+    if (done) { c.fillStyle = C.road; c.beginPath(); c.roundRect(x, mid + 1, bw, done * downScale, [0, 0, round, round]); c.fill(); }          // delivered
+    if (late) { c.fillStyle = C.late; c.beginPath(); c.roundRect(x, mid + 1, bw, Math.min(done, late) * downScale, [0, 0, round, round]); c.fill(); } // of them late
     c.globalAlpha = 1;
   }
-  if (limit < b) { c.fillStyle = C.ahead; c.fillRect(tlX(limit), top, tlX(b) - tlX(limit), base - top); } // not played yet, or nothing happens
-  const x = tlX(Math.min(Math.max(T, a), b)); // the playhead and its flag
-  c.strokeStyle = C.ink; c.lineWidth = 2; c.beginPath(); c.moveTo(x, 2); c.lineTo(x, tl.h - 2); c.stroke();
-  const label = clock(T); c.font = '700 13px "Barlow Condensed", sans-serif'; const tw = c.measureText(label).width + 12;
-  const fx = Math.max(2, Math.min(tl.w - tw - 2, x + tw + 6 > tl.w ? x - tw - 1 : x + 1));
-  c.fillStyle = C.ink; c.beginPath(); c.roundRect(fx, 2, tw, 18, 3); c.fill();
-  c.fillStyle = C.surface; c.textAlign = "left"; c.fillText(label, fx + 6, 15);
+  if (tl.hover !== null) { const hx = tlX(Math.floor(tl.hover / HOUR) * HOUR); c.fillStyle = C.ahead; c.fillRect(hx, top, hourW, bottom - top); }
+  const x = tlX(Math.min(Math.max(T, a), b)); // the playhead: a line, a grip, a flag
+  c.strokeStyle = C.ink; c.lineWidth = 2; c.beginPath(); c.moveTo(x, 20); c.lineTo(x, tl.h - 2); c.stroke();
+  c.fillStyle = C.surface; c.beginPath(); c.arc(x, mid, 5, 0, 2 * Math.PI); c.fill(); c.lineWidth = 2; c.stroke();
+  const label = clock(T); c.font = '700 13px "Barlow Condensed", sans-serif'; const tw = c.measureText(label).width + 14;
+  const fx = Math.max(1, Math.min(tl.w - tw - 1, x - tw / 2));
+  c.fillStyle = C.ink; c.beginPath(); c.roundRect(fx, 1, tw, 19, 5); c.fill();
+  c.fillStyle = C.surface; c.textAlign = "center"; c.fillText(label, fx + tw / 2, 15);
 }
 function scrub(ev) { const r = tl.el.getBoundingClientRect(); T = Math.min(Math.max(tlT(ev.clientX - r.left), t0), Math.max(tMax, t0)); following = false; }
+function hoverTip(ev) {
+  const r = tl.el.getBoundingClientRect(), t = tlT(ev.clientX - r.left), h = Math.floor(t / HOUR), tip = $("tl-tip");
+  tl.hover = t;
+  const req = H.req[h] || 0, won = H.won[h] || 0, done = H.done[h] || 0, late = H.late[h] || 0;
+  tip.innerHTML = `<b>${clock(h * HOUR)}–${hhmm((h + 1) * HOUR)}</b> · ${req} request${req === 1 ? "" : "s"}, ${won} won · ${done} delivered${late ? `, ${late} late` : ""}`;
+  tip.hidden = false; tip.style.left = Math.max(150, Math.min(r.width - 150, ev.clientX - r.left)) + "px";
+}
 tl.el.addEventListener("pointerdown", (ev) => { scrubbing = true; tl.el.setPointerCapture(ev.pointerId); scrub(ev); });
-tl.el.addEventListener("pointermove", (ev) => { if (scrubbing) scrub(ev); });
+tl.el.addEventListener("pointermove", (ev) => { if (scrubbing) scrub(ev); hoverTip(ev); });
 tl.el.addEventListener("pointerup", () => { scrubbing = false; });
 tl.el.addEventListener("pointercancel", () => { scrubbing = false; });
+tl.el.addEventListener("pointerleave", () => { tl.hover = null; $("tl-tip").hidden = true; });
 
 // ---- time ------------------------------------------------------------------
 let lastFrame = 0;
@@ -635,7 +846,8 @@ function label(run) {
   const m = run.meta || {}, s = run.summary && run.summary.score;
   if (!m.startedAt) return run.id;
   const what = m.kind === "final" ? "Final" : `Level ${m.level}${m.seed ? " · " + m.seed : m.policy ? " · " + m.policy : ""}`;
-  return `${run.live ? "● LIVE · " : ""}${m.startedAt.slice(11, 16)} · ${what}${s ? ` · ${euro(s.marginCents)} · ${s.wonOrders} orders · ${(100 * s.onTimeShare).toFixed(1)}% on time` : ""}`;
+  const state = run.live ? "● LIVE · " : !run.complete ? "stopped early · " : "";
+  return `${state}${m.startedAt.slice(11, 16)} · ${what}${s ? ` · ${euro(s.marginCents)} · ${s.wonOrders} orders · ${(100 * s.onTimeShare).toFixed(1)}% on time` : ""}`;
 }
 let runList = [];
 function fillRuns(runs) {
@@ -646,20 +858,24 @@ async function loadRuns() {
   fillRuns(await json("/api/runs?n=80"));
   const asked = new URLSearchParams(location.search).get("run");
   if (asked && !runList.find((r) => r.id === asked)) { // an older run than the list holds
-    runList.push({ id: asked, live: false, meta: {} });
+    runList.push({ id: asked, live: false, complete: true, meta: {} });
     $("runs").insertAdjacentHTML("beforeend", `<option value="${esc(asked)}">${esc(asked)}</option>`);
   }
-  const wanted = asked || (runList.find((r) => r.live) || runList[0] || {}).id;
+  // the run being played, else the newest that was played to its end
+  const wanted = asked || (runList.find((r) => r.live) || runList.find((r) => r.complete) || runList[0] || {}).id;
   if (wanted) { $("runs").value = wanted; await open(wanted); }
 }
-function clearLog() { log = []; cursor = 0; dirty = true; S = fresh(); pickedAt.clear(); deliveredAt.clear(); wonByHour = []; lateByHour = []; lastAct = 0; tMax = 0; }
+function clearLog() {
+  log = []; cursor = 0; dirty = true; S = fresh(); pickedAt.clear(); deliveredAt.clear(); lastAct = 0; tMax = 0;
+  for (const k in H) H[k] = []; for (const k in D) D[k] = [];
+}
 async function open(id) {
   if (source) source.close();
   const info = runList.find((r) => r.id === id);
   runID = id; clearLog();
   T = 0; t0 = 0; ended = !(info && info.live); following = !ended; playing = true;
   const m = (info && info.meta) || {};
-  $("sub").textContent = [m.kind === "final" ? "the final" : m.kind === "board" ? "ranking run" : m.kind ? m.kind + " run" : "", m.engine ? "engine " + m.engine : ""].filter(Boolean).join(" · ");
+  $("sub").textContent = [m.kind === "final" ? "the final" : m.kind === "board" ? "ranking run" : m.kind ? m.kind + " run" : "", m.engine ? "engine " + m.engine : "", info && !info.live && !info.complete && m.startedAt ? "stopped before the week ended" : ""].filter(Boolean).join(" · ");
   homes = {};
   try { for (const d of await json(`/api/runs/${encodeURIComponent(id)}/roster`)) homes[d.id] = d.homePlaceId; } catch (err) { /* a run without a roster still plays */ }
   let first = true, opened = false;

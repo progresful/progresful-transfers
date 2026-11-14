@@ -42,8 +42,8 @@ const (
 `
 )
 
-// A finished run is sent whole and then closed: its gig posts first, its events after,
-// without the views of gigs and without the quotes.
+// A finished run is sent whole and then closed: its actions first, its events after, a
+// driver's look at a gig in the short form.
 func TestStreamSendsAFinishedRun(t *testing.T) {
 	root := t.TempDir()
 	writeRun(t, root, "20261114-100000-L8-a-1", map[string]string{
@@ -61,8 +61,10 @@ func TestStreamSendsAFinishedRun(t *testing.T) {
 		}
 	}
 	want := []string{
+		`data: {"a":{"at":540,"action":{"type":"quote","requestId":"R1"},"result":{"ok":true}}}`,
 		`data: {"a":{"at":555,"action":{"type":"post","stops":[{"orderId":"R1","leg":0,"kind":"pickup"}]},"result":{"ok":true,"id":"g1"}}}`,
 		`data: {"e":{"seq":1,"at":555,"kind":"order_won","order":{"id":"R1"}}}`,
+		`data: {"v":[556,"g1"]}`,
 		`data: {"e":{"seq":3,"at":600,"kind":"gig_booked","gigId":"g1","driverId":"d1"}}`,
 		`event: end`,
 		`data: {}`,
@@ -132,7 +134,7 @@ func TestStreamFollowsARunBeingPlayed(t *testing.T) {
 // The run list is newest first; a run without a summary is live only while it writes.
 func TestRunsListAndLiveFlag(t *testing.T) {
 	root := t.TempDir()
-	writeRun(t, root, "20261114-090000-L8-old-1", map[string]string{metaFile: `{"runId":"a"}`, summaryFile: `{"score":{"marginCents":5}}`, eventsFile: ""})
+	writeRun(t, root, "20261114-090000-L8-old-1", map[string]string{metaFile: `{"runId":"a"}`, summaryFile: `{"score":{"marginCents":5},"worldEnded":true}`, eventsFile: ""})
 	writeRun(t, root, "20261114-100000-L8-stopped-2", map[string]string{metaFile: `{"runId":"b"}`, eventsFile: ""})
 	writeRun(t, root, "20261114-110000-live-L8-now", map[string]string{metaFile: `{"runId":"c"}`, eventsFile: ""})
 	stale := time.Now().Add(-10 * time.Minute)
@@ -147,7 +149,7 @@ func TestRunsListAndLiveFlag(t *testing.T) {
 	if now < 0 || stopped < now || old < stopped {
 		t.Fatalf("runs should come newest first: %s", body)
 	}
-	if !strings.Contains(body, `"id":"20261114-110000-live-L8-now","live":true`) || !strings.Contains(body, `"id":"20261114-100000-L8-stopped-2","live":false`) || !strings.Contains(body, `"id":"20261114-090000-L8-old-1","live":false`) {
+	if !strings.Contains(body, `"id":"20261114-110000-live-L8-now","live":true`) || !strings.Contains(body, `"id":"20261114-100000-L8-stopped-2","live":false`) || !strings.Contains(body, `"id":"20261114-090000-L8-old-1","live":false,"complete":true`) {
 		t.Errorf("live flags: %s", body)
 	}
 }

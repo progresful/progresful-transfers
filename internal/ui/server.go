@@ -108,7 +108,8 @@ func (s *Server) runDir(id string) string {
 // runInfo is one row of the run list.
 type runInfo struct {
 	ID        string          `json:"id"`
-	Live      bool            `json:"live"` // still being written
+	Live      bool            `json:"live"`     // still being written
+	Complete  bool            `json:"complete"` // played to the end of its world
 	StartedAt time.Time       `json:"startedAt"`
 	Meta      json.RawMessage `json:"meta"`
 	Summary   json.RawMessage `json:"summary,omitempty"`
@@ -150,6 +151,11 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request) {
 		info.StartedAt = m.StartedAt
 		if summary, err := os.ReadFile(filepath.Join(dir, summaryFile)); err == nil && json.Valid(summary) {
 			info.Summary = summary
+			var sum struct {
+				WorldEnded bool `json:"worldEnded"`
+			}
+			_ = json.Unmarshal(summary, &sum)
+			info.Complete = sum.WorldEnded
 		} else if written, err := os.Stat(filepath.Join(dir, eventsFile)); err == nil {
 			// No summary yet: the run is being played if it wrote lately, else it was stopped.
 			info.Live = time.Since(written.ModTime()) < liveWithin
@@ -229,9 +235,10 @@ func (t *tail) close() {
 	}
 }
 
-// stream sends a run's events and gig posts as server-sent events: everything on disk
-// first, then what the run writes while it is played, until the run has ended. Views of
-// gigs are left out. Each message is {"e": <event>} or {"a": <action>}.
+// stream sends a run's events and actions as server-sent events: everything on disk
+// first, then what the run writes while it is played, until the run has ended. Each
+// message is {"e": <event>}, {"a": <action>} or, for a driver's look at a gig (four
+// fifths of all events), the short {"v": [<minute>, <gig id>]}.
 func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	dir := s.runDir(r.PathValue("id"))
 	if dir == "" {
@@ -247,8 +254,16 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	defer actions.close()
 	send := func(key string) func([]byte) error {
 		return func(line []byte) error {
-			if (key == "e" && containsViewed(line)) || (key == "a" && !gigAction(line)) {
-				return nil
+			if key == "e" && containsViewed(line) {
+				var view struct {
+					At    int    `json:"at"`
+					GigID string `json:"gigId"`
+				}
+				if json.Unmarshal(line, &view) != nil || view.GigID == "" {
+					return nil
+				}
+				_, err := fmt.Fprintf(w, "data: {\"v\":[%d,%q]}\n\n", view.At, view.GigID)
+				return err
 			}
 			_, err := fmt.Fprintf(w, "data: {%q:%s}\n\n", key, line)
 			return err
@@ -288,12 +303,6 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 
 func containsViewed(line []byte) bool {
 	return bytes.Contains(line, []byte(viewedKind))
-}
-
-// gigAction reports whether an action line posts or withdraws a gig: the only actions
-// the map needs (a post names the cars of its gig).
-func gigAction(line []byte) bool {
-	return bytes.Contains(line, []byte(`"type":"post"`)) || bytes.Contains(line, []byte(`"type":"withdraw"`))
 }
 
 // feed relays the public feed of a final (every team's score every two seconds). It
