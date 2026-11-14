@@ -367,6 +367,11 @@ func (e *Engine) pricesFor(req *api.PriceRequest) map[string]int {
 	}
 	var offered []api.DeliveryOption
 	risk, riskCap := 0.0, e.riskCap(e.market.dealer(req.DealerID))
+	if e.P.PremiumCap > 0 && hasPremium(req) {
+		// A premium car's risk is the lane model's guess with a term from before the model
+		// (premium cars were declined in the weeks of its fit): it has its own cap.
+		riskCap = e.P.PremiumCap
+	}
 	safest := math.Inf(1) // the lowest risk among the options refused for their risk
 	for _, opt := range req.Options {
 		if e.slack(req, opt) < e.P.MinSlackMin || e.shortLead(req, opt) {

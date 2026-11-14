@@ -105,6 +105,9 @@ type Params struct {
 	// Premium 1 quotes premium cars (experienced drivers only); 0 declines them. In the
 	// shortage they arrived late almost one time in five and earned a third less.
 	Premium int `json:"premium"`
+	// PremiumCap is the highest modelled lateness risk at which a premium car is still
+	// quoted when Premium is 1 (0: the cap of every other car).
+	PremiumCap float64 `json:"premiumCap"`
 	// RiskModel picks the lateness model: 2 the supply model (the champion's), 3 the one
 	// that also knows weekday, hour and delivery option (its risks are on a lower scale:
 	// use RiskMax near 0.2 and no Thursday/Friday factors with it).
