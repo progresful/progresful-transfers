@@ -52,6 +52,9 @@ type Server struct {
 	Root    string // the runs folder
 	FeedURL string // base URL of the Spread server, for the public feed of a final
 	Team    string // the team to highlight in the feed (its name or id), may be empty
+	// StaticDir serves the page from a folder instead of the copy compiled into the
+	// binary: for working on the page without rebuilding.
+	StaticDir string
 }
 
 // Handler routes the web view's requests.
@@ -60,6 +63,9 @@ func (s *Server) Handler() http.Handler {
 	files, err := fs.Sub(static, "static")
 	if err != nil {
 		panic(err) // the folder is compiled in
+	}
+	if s.StaticDir != "" {
+		files = os.DirFS(s.StaticDir)
 	}
 	mux.Handle("GET /", http.FileServer(http.FS(files)))
 	mux.HandleFunc("GET /api/config", s.config)

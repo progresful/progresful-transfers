@@ -27,6 +27,7 @@ func cmdUI(ctx context.Context, args []string) error {
 	addr := fs.String("addr", uiDefaultAddr, "address to listen on")
 	root := fs.String("root", defaultRoot, "folder of run logs")
 	team := fs.String("team", "", "team to highlight in the ranking of a final (name or id as in the rankings)")
+	staticDir := fs.String("static", "", "serve the page from this folder instead of the built-in copy (for working on it)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -36,7 +37,7 @@ func cmdUI(ctx context.Context, args []string) error {
 	}
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           (&ui.Server{Root: *root, FeedURL: url, Team: *team}).Handler(),
+		Handler:           (&ui.Server{Root: *root, FeedURL: url, Team: *team, StaticDir: *staticDir}).Handler(),
 		ReadHeaderTimeout: uiHeaderTimeout,
 	}
 	done := make(chan error, 1)
