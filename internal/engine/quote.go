@@ -180,6 +180,15 @@ func (e *Engine) costMult() float64 {
 	if e.cold && e.P.JoinCost > 0 {
 		return e.P.JoinCost
 	}
+	if e.P.FirstDayCost > 0 && cal.DayOf(e.now) == 0 {
+		// Monday: no dealer has any trust yet, so the market level is at its lowest and
+		// close to the cost; the price that pays best then sits above the level and loses.
+		return e.P.FirstDayCost
+	}
+	if e.P.RosterCost > 0 && e.P.RosterFrom > 0 && len(e.drivers) >= e.P.RosterFrom {
+		// A world with drivers enough: their time is worth less, so an order costs less.
+		return e.P.RosterCost
+	}
 	if e.P.LoosenCost > 0 {
 		// Drivers to spare: driver time is worth less, so orders cost less.
 		return math.Max(e.P.CostMin, e.P.CostMult-e.P.LoosenCost*e.spare(e.onTimeOutlook()))

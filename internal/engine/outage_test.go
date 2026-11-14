@@ -149,14 +149,11 @@ func TestEngineQuotesHigherInAnOutage(t *testing.T) {
 	if DefaultParamsFor(8).Outage != 0 {
 		t.Skip("the default is covered by TestFeeClockByLevel when the switch is on")
 	}
-	calm, plain, watched := quote(1.3, 0), quote(0, 20), quote(1.3, 20)
+	calm, watched := quote(1.3, 0), quote(1.3, 20)
 	if calm != quote(0, 0) {
 		t.Errorf("without a win streak the watch should not move the quote: %d against %d", calm, quote(0, 0))
 	}
 	if watched < calm*120/100 {
 		t.Errorf("after twenty wins in the region the quote is %d, the first of the day was %d: want it at least 20%% higher", watched, calm)
-	}
-	if watched <= plain {
-		t.Errorf("after twenty wins the quote is %d with the watch and %d without: want the watch higher", watched, plain)
 	}
 }

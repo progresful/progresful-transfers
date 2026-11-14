@@ -65,3 +65,32 @@ func TestThinRosterReachesTheQuote(t *testing.T) {
 		t.Errorf("risk with 700 drivers %.4f, with 721 drivers %.4f: want the thin world riskier", thin, full)
 	}
 }
+
+// In a world with drivers enough an order is priced on RosterCost; with fewer drivers,
+// or with the switch off, on CostMult.
+func TestRosterCost(t *testing.T) {
+	tests := []struct {
+		name    string
+		cost    float64
+		drivers int
+		want    float64
+	}{
+		{"many drivers", 1.1, 800, 1.1},
+		{"at the bar", 1.1, 720, 1.1},
+		{"few drivers", 1.1, 719, 1.2},
+		{"switched off", 0, 800, 1.2},
+		{"no roster known", 1.1, 0, 1.2},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := DefaultParamsFor(8)
+			p.RosterCost, p.RosterFrom = tc.cost, 720
+			e := New(8, p, testMap(t))
+			// A world joined on its Monday: one joined later has the cost of a late join.
+			e.Begin(&api.Snapshot{Now: cal.At(0, 10*cal.Hour), EndsAt: 14280}, rosterOf(tc.drivers))
+			if got := e.costMult(); got != tc.want {
+				t.Errorf("cost %.2f, want %.2f", got, tc.want)
+			}
+		})
+	}
+}

@@ -115,3 +115,31 @@ func TestJoinCostOnlyInAWorldJoinedLate(t *testing.T) {
 		t.Errorf("switched off, a late join keeps the full cost: %.2f", off.costMult())
 	}
 }
+
+// On the Monday of a full week the cost of an order is FirstDayCost: the day's orders are
+// the trust that the rest of the week is sold on. From Tuesday on, and with the switch
+// off, it is CostMult.
+func TestFirstDayCost(t *testing.T) {
+	tests := []struct {
+		name  string
+		first float64
+		day   int
+		want  float64
+	}{
+		{"monday", 1.05, 0, 1.05},
+		{"tuesday", 1.05, 1, 1.2},
+		{"friday", 1.05, 4, 1.2},
+		{"switched off", 0, 0, 1.2},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := DefaultParamsFor(8)
+			p.FirstDayCost = tc.first
+			e := New(8, p, testMap(t))
+			e.now = cal.At(tc.day, 10*cal.Hour)
+			if got := e.costMult(); got != tc.want {
+				t.Errorf("cost %.2f, want %.2f", got, tc.want)
+			}
+		})
+	}
+}

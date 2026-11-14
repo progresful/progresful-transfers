@@ -81,6 +81,16 @@ type Params struct {
 	// days of unanswered requests and accept only low prices, and the drivers are free.
 	// 0 keeps CostMult. A full week, and a restart in the middle of one, never use it.
 	JoinCost float64 `json:"joinCost"`
+	// FirstDayCost is the cost of an order on the Monday of a full week (0: CostMult as on
+	// every day). No dealer trusts the team yet, so prices are at their lowest: orders won
+	// then are the trust that the rest of the week is sold on.
+	FirstDayCost float64 `json:"firstDayCost"`
+	// RosterCost is the cost of an order in a world with at least RosterFrom drivers (0:
+	// CostMult in every world). The driver list is known from the first minute; a cost of
+	// 1.1 instead of 1.2 earned more in the worlds with 720 drivers or more and lost in
+	// the worlds with fewer, where every extra order makes the others late.
+	RosterCost float64 `json:"rosterCost"`
+	RosterFrom int     `json:"rosterFrom"`
 	// ReplayQuotes 1 restores a fault of the engines up to e16: when joining a world with
 	// a past, they priced the past's requests anew and took the dealers' answers of that
 	// time as answers to those prices, which taught the price model losses that never
