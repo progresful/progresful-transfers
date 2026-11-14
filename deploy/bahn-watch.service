@@ -1,0 +1,19 @@
+# bahn-watch.service - records the public feed of one final (every team, every 2 s), then
+# exits. It needs no key. Started by hand together with bahn-final.
+[Unit]
+Description=Progresful recorder: the public feed of the next Spread final
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bahn
+WorkingDirectory=/srv/bahn
+Environment=TZ=Europe/Helsinki
+ExecStart=/srv/bahn/hc watch -team progresful
+Restart=no
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/bahn/runs

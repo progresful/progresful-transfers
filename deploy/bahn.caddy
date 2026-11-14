@@ -1,0 +1,23 @@
+# bahn.caddy - Caddy site-block snippet for the Progresful board (bahn.emplv.com).
+# deploy/install.sh copies it to /etc/caddy/conf.d/ and validates the whole config
+# before reloading, so a bad snippet never takes other sites offline.
+#
+# TLS: Cloudflare proxies *.emplv.com and terminates browser TLS. Caddy answers the
+# edge with the shared Cloudflare Origin CA certificate. Zone SSL mode: Full (strict).
+
+bahn.emplv.com {
+	tls /etc/caddy/origin.pem /etc/caddy/origin.key
+
+	# The run stream and the final's feed are server-sent events: pass each event on
+	# at once and do not compress them.
+	@stream path /api/feed /api/runs/*/stream
+	handle @stream {
+		reverse_proxy 127.0.0.1:8790 {
+			flush_interval -1
+		}
+	}
+	handle {
+		encode zstd gzip
+		reverse_proxy 127.0.0.1:8790
+	}
+}

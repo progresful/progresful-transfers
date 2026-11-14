@@ -1,0 +1,25 @@
+# bahn-final.service - plays one final (or test final) from the live clock, then exits.
+# It is started by hand before each final and never restarts by itself:
+#   sudo systemctl start bahn-final bahn-watch
+# Two runners on one team key would both answer the same requests: stop any other first.
+[Unit]
+Description=Progresful runner: plays the next Spread final
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bahn
+WorkingDirectory=/srv/bahn
+Environment=TZ=Europe/Helsinki
+# The team key is read from /srv/bahn/.env (owner bahn, mode 0600).
+ExecStart=/srv/bahn/hc final
+Restart=no
+# A stop lets the runner save its state and close its logs.
+KillSignal=SIGTERM
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/bahn/runs
