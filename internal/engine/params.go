@@ -131,7 +131,13 @@ type Params struct {
 	RiskCost float64 `json:"riskCost"`
 	// RiskThursday and RiskFriday scale the risk cap on the last two days of requests.
 	RiskThursday float64 `json:"riskThursday"`
-	RiskFriday   float64 `json:"riskFriday"`
+	// EndRisk multiplies the risk cap of an option whose deadline falls after the week's
+	// last request, Friday 18:00 (0: no change). TrustByDeadline 1 counts no trust at stake
+	// for such an order. A dealer's trust halves when a late car arrives, and after the
+	// last request there is no price left for it to lower.
+	EndRisk         float64 `json:"endRisk"`
+	TrustByDeadline int     `json:"trustByDeadline"`
+	RiskFriday      float64 `json:"riskFriday"`
 	// The delivery minimum is 90% on time, or the week is not ranked. The guard watches the
 	// expected on-time share of the week (late orders, and open orders by their chance to
 	// end late) and tightens RiskMax as it nears the minimum: full RiskMax at GuardFull,
@@ -566,6 +572,15 @@ func DefaultParamsFor(level int) Params {
 			// of 90, with the same orders: +354 a week on 48 worlds (s.e. 107, better in
 			// 35), on time -0.1 points; worlds joined on Thursday 5,421 against 5,206.
 			p.ChainTries = 2
+			// e22: Friday is the last day of requests, and Saturday and the next Monday still
+			// deliver: of Friday's 70 orders 15 arrive that day, 15 on Saturday and 38 on the
+			// Monday, when no new order competes for a driver. So Friday's orders are priced
+			// on 0.95 of the cost and its risk cap is a quarter wider: +86 a week on 48
+			// worlds (s.e. 30, better in 32), on time -0.15 points. A Friday cost of 0.85 or
+			// a cap of 1.5 goes too far, and the same rule for every order due after the
+			// last request (Thursday's too) earns nothing.
+			p.FridayCost = 0.95
+			p.RiskFriday = 1.25
 			p.LateMax = 1
 		}
 		if level == paramsShortageLevel {

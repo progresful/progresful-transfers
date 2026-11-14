@@ -136,8 +136,14 @@ func TestShortageModelsByLevel(t *testing.T) {
 		if p.MarketModel != wantMarket || p.RiskModel != wantRisk {
 			t.Errorf("level %d: market model %d, risk model %d, want %d and %d", level, p.MarketModel, p.RiskModel, wantMarket, wantRisk)
 		}
-		if p.RiskThursday != 1 || p.RiskFriday != 1 {
-			t.Errorf("level %d: Thursday and Friday factors %.2f / %.2f, want 1 / 1", level, p.RiskThursday, p.RiskFriday)
+		// The lane model carries the weekday itself; level 8 widens Friday's cap and lowers
+		// Friday's cost since e22 (the last day of requests, with Saturday and Monday to deliver).
+		friday, fridayCost := 1.0, 1.0
+		if level == 8 {
+			friday, fridayCost = 1.25, 0.95
+		}
+		if p.RiskThursday != 1 || p.RiskFriday != friday || p.FridayCost != fridayCost {
+			t.Errorf("level %d: Thursday factor %.2f, Friday factor %.2f, Friday cost %.2f, want 1, %.2f and %.2f", level, p.RiskThursday, p.RiskFriday, p.FridayCost, friday, fridayCost)
 		}
 	}
 }

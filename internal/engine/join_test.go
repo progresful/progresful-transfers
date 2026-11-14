@@ -143,3 +143,24 @@ func TestFirstDayCost(t *testing.T) {
 		})
 	}
 }
+
+// Friday's cost factor applies in a week played from its Monday; a world joined mid-week
+// with no order of ours has its own cost and gets no second discount.
+func TestFridayCostNotOnTopOfTheJoinCost(t *testing.T) {
+	p := DefaultParamsFor(8)
+	p.FridayCost = 0.9
+	e := New(8, p, testMap(t))
+	e.now = cal.At(4, 10*cal.Hour)
+	if got := e.dayCost(); got != 0.9 {
+		t.Errorf("a full week's Friday: factor %.2f, want 0.90", got)
+	}
+	e.cold = true
+	if got := e.dayCost(); got != 1 {
+		t.Errorf("a world joined mid-week: factor %.2f, want 1", got)
+	}
+	e.cold = false
+	e.now = cal.At(3, 10*cal.Hour)
+	if got := e.dayCost(); got != 1 {
+		t.Errorf("a Thursday: factor %.2f, want 1", got)
+	}
+}

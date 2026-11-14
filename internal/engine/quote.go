@@ -237,6 +237,9 @@ func (e *Engine) readyCost(req *api.PriceRequest, ref api.DeliveryOption) float6
 // dayCost is the weekday's factor on the cost of an order: Friday's drivers are dearer.
 func (e *Engine) dayCost() float64 {
 	if cal.DayOf(e.now) == fridayIndex && e.P.FridayCost > 0 {
+		if e.cold && e.P.JoinCost > 0 {
+			return 1 // a world joined mid-week is priced on its own, lower cost already
+		}
 		return e.P.FridayCost
 	}
 	return 1
@@ -387,7 +390,7 @@ func (e *Engine) pricesFor(req *api.PriceRequest) map[string]int {
 			continue
 		}
 		r := e.lateRisk(req, opt)
-		if r > riskCap {
+		if r > riskCap*e.endRisk(opt.Deadline) {
 			e.stats.RiskyOptions++
 			safest = math.Min(safest, r)
 			continue
@@ -464,7 +467,7 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 	ratio := e.P.PriceMult
 	if e.P.Adaptive == 1 {
 		mult := e.costMultFor(req, ref)*e.dealerCost(req, d) + e.P.RiskSlope*risk
-		cost := float64(req.ReferenceFeeCents)*mult*e.dayCost()*e.laneCost(req)*e.readyCost(req, ref) + risk*(e.P.RiskCost*list+e.P.TrustGuard*e.trustAtStake(d))
+		cost := float64(req.ReferenceFeeCents)*mult*e.dayCost()*e.laneCost(req)*e.readyCost(req, ref) + risk*(e.P.RiskCost*list+e.P.TrustGuard*e.trustAtStakeBy(d, ref.Deadline))
 		var chance float64
 		worth := e.trustWorthFor(d, risk) / list
 		ratio, chance = bestRatioAt(level, width, cost/list, worth, float64(floor)/list)
@@ -548,6 +551,28 @@ func (e *Engine) trustAtStake(d *dealerBook) float64 {
 	// Each won order wins one point back, so the points missed add up like a triangle.
 	orders := math.Min(toWin, lost)
 	return trustStep * (lost*orders - orders*(orders-1)/2) * float64(e.avgListCents())
+}
+
+// weekRequestsEnd is the minute after which no request comes any more: Friday 18:00.
+const weekRequestsEnd = (requestDays-1)*cal.Day + requestDayEnd
+
+// endRisk is the factor on the risk cap for an option whose deadline falls after the
+// week's last request: arriving late then can no longer lower a price (a dealer's trust
+// halves when the late car arrives), only cost its refund.
+func (e *Engine) endRisk(deadline int) float64 {
+	if e.P.EndRisk > 0 && deadline >= weekRequestsEnd {
+		return e.P.EndRisk
+	}
+	return 1
+}
+
+// trustAtStakeBy is trustAtStake for an order due at the given deadline. With
+// TrustByDeadline it is nothing when the deadline falls after the week's last request.
+func (e *Engine) trustAtStakeBy(d *dealerBook, deadline int) float64 {
+	if e.P.TrustByDeadline == 1 && deadline >= weekRequestsEnd {
+		return 0
+	}
+	return e.trustAtStake(d)
 }
 
 // dealerOrdersToCome estimates the orders still to win from a dealer this week, from its pace so far.
