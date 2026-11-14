@@ -20,7 +20,7 @@ func TestDefaultsByLevel(t *testing.T) {
 		{5, 0.75, 0.02, 180, 1, 1, 1, 0.92, 0.85, 1},
 		{6, 0.75, 0.02, 180, 1, 1, 1, 0.92, 0.85, 1},
 		{7, 0.80, 0.05, 0, 0, 1, 0, 1.22, 1.10, 0.35},
-		{8, 0.80, 0.05, 0, 0, 1, 0, 1.3, 1.10, 0.35},
+		{8, 0.80, 0.05, 0, 0, 1, 0, 1.2, 1.10, 0.35},
 	}
 	for _, c := range cases {
 		p := DefaultParamsFor(c.level)
@@ -57,6 +57,22 @@ func TestChainAttemptsByLevel(t *testing.T) {
 	for level, tries := range want {
 		if got := DefaultParamsFor(level).ChainTries; got != tries {
 			t.Errorf("level %d: %d chain attempts per order, want %d", level, got, tries)
+		}
+	}
+}
+
+// Level 8 prices each lane against its own level and prices the lateness risk into the
+// cost; the levels below keep one level per world and a flat cost.
+func TestLanePricingByLevel(t *testing.T) {
+	for level := 1; level <= 8; level++ {
+		p := DefaultParamsFor(level)
+		wantLane, wantDest, wantSlope := 0.0, 0.0, 0.0
+		if level == 8 {
+			wantLane, wantDest, wantSlope = 1, 0.02, 1
+		}
+		if p.LaneWeight != wantLane || p.DestRate != wantDest || p.RiskSlope != wantSlope {
+			t.Errorf("level %d: lane weight %.2f, destination rate %.3f, risk slope %.2f, want %.2f, %.3f, %.2f",
+				level, p.LaneWeight, p.DestRate, p.RiskSlope, wantLane, wantDest, wantSlope)
 		}
 	}
 }

@@ -174,7 +174,8 @@ func TestDestinationShiftFollowsItsOwnOutcomes(t *testing.T) {
 	if s := m.destShift("kemi"); s > destShiftCap {
 		t.Errorf("a shift is capped at %.2f, got %.3f", destShiftCap, s)
 	}
-	off := newMarket(DefaultParamsFor(8), 8)
+	p.DestRate = 0
+	off := newMarket(p, 8)
 	off.learnDest("kemi", 0.6)
 	if off.destShift("kemi") != 0 {
 		t.Error("switched off, nothing is learned")
