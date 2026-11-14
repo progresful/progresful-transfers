@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dispatch board</title>
+<title>Progresful</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -195,7 +195,7 @@
 <body>
 <div id="app">
   <header>
-    <div class="brand"><b>Dispatch board</b></div>
+    <div class="brand"><b>Progresful</b></div>
     <label class="pick"><select id="runs" aria-label="Run to show"></select></label>
     <span id="mode" class="pill">Replay</span>
     <div class="kpis">
@@ -369,6 +369,14 @@ const pickedAt = new Map(), deliveredAt = new Map(); // "order|leg" -> minute, k
 const H = { req: [], won: [], done: [], late: [] };    // per hour, for the timeline
 const D = { won: [], margin: [] };                     // per day, for the day headers
 let lastAct = 0;
+let firstAct = null, tFirst = null; // the minute of our first action, and of the first thing in the log
+// The first day on screen is the day we started to act. A world can have a past that is not ours (a final
+// is joined in the middle of its week): until we act in a run that is being played, the day after that past.
+function origin() {
+  if (firstAct !== null) return Math.floor(firstAct / DAY) * DAY;
+  if (tFirst === null) return 0;
+  return ended ? Math.floor(tFirst / DAY) * DAY : (Math.floor(tMax / DAY) + 1) * DAY;
+}
 let T = 0, t0 = 0, tMax = 0, playing = true, following = false, ended = true, runID = "", source = null, skipQuiet = true, scrubbing = false;
 
 function fresh() {
@@ -400,6 +408,7 @@ function apply(it) {
   const e = it.e, t = it.t;
   switch (it.k) {
     case "price_request": {
+      if (firstAct === null || t < firstAct) break; // asked before we joined: not ours to answer
       const r = e.request, leg = r.legs[0];
       S.reqs.set(r.id, { id: r.id, at: t, from: leg.pickup.placeId, to: leg.delivery.placeId, legs: r.legs.length, ref: r.referenceFeeCents || 0,
         lists: Object.fromEntries((r.options || []).map((o) => [o.kind, o.listPriceCents])), price: 0, ratio: 0, passed: false, outcome: "open" });
@@ -413,8 +422,8 @@ function apply(it) {
       break;
     }
     case "order_lost": {
-      const r = S.reqs.get(e.requestId); S.n.lost++;
-      if (r) { r.outcome = "lost"; if (!r.passed && r.ratio) { S.sum.lostRatio += r.ratio; S.sum.lostN++; } }
+      const r = S.reqs.get(e.requestId); if (!r) break; // a request from before we joined
+      S.n.lost++; r.outcome = "lost"; if (!r.passed && r.ratio) { S.sum.lostRatio += r.ratio; S.sum.lostN++; }
       break;
     }
     case "order_won": {
@@ -502,7 +511,8 @@ function add(msg) { // one message of the run's stream
   if (msg.v) it = { t: msg.v[0], k: "viewed", gig: msg.v[1] };
   else if (msg.a) {
     const a = msg.a, act = a.action || {};
-    if (!a.result || !a.result.ok) return;
+    if (typeof a.at === "number" && (firstAct === null || a.at < firstAct)) { firstAct = a.at; dirty = true; }
+    if (!a.result || !a.result.ok) { t0 = origin(); return; }
     if (act.type === "post") {
       const legs = (act.stops || []).filter((s) => s.kind === "pickup").map((s) => ({ orderId: s.orderId, leg: s.leg || 0 }));
       it = { t: a.at, k: "posted", gig: a.result.id, legs, plan: act.schedule || [] };
@@ -519,12 +529,13 @@ function add(msg) { // one message of the run's stream
     if (e.kind !== "ledger" && e.kind !== "forecast" && e.at > lastAct) lastAct = e.at;
   }
   if (!it || typeof it.t !== "number") return;
-  if (!log.length) t0 = Math.floor(it.t / DAY) * DAY;
+  if (tFirst === null || it.t < tFirst) tFirst = it.t;
   if (log.length && it.t < log[log.length - 1].t) { // out of order: keep the log sorted
     let i = log.length; while (i > 0 && log[i - 1].t > it.t) i--;
     log.splice(i, 0, it); if (i < cursor) dirty = true;
   } else log.push(it);
   if (it.t > tMax) tMax = it.t;
+  t0 = origin();
 }
 // The week on screen ends with the day of the last thing that happened: the world idles on for days after it.
 function week() { return [t0, Math.max(t0 + DAY, Math.ceil((Math.max(lastAct, t0) + 1) / DAY) * DAY)]; }
@@ -856,7 +867,7 @@ async function loadRuns() {
   if (wanted) { $("runs").value = wanted; await open(wanted); }
 }
 function clearLog() {
-  log = []; cursor = 0; dirty = true; S = fresh(); pickedAt.clear(); deliveredAt.clear(); lastAct = 0; tMax = 0;
+  log = []; cursor = 0; dirty = true; S = fresh(); pickedAt.clear(); deliveredAt.clear(); lastAct = 0; tMax = 0; firstAct = null; tFirst = null;
   for (const k in H) H[k] = []; for (const k in D) D[k] = [];
 }
 async function open(id) {
@@ -875,7 +886,7 @@ async function open(id) {
     add(JSON.parse(ev.data));
     if (first) { first = false; T = t0 + FIRST_HOUR; }
   };
-  source.addEventListener("end", () => { ended = true; following = false; source.close(); });
+  source.addEventListener("end", () => { ended = true; following = false; t0 = origin(); source.close(); });
   history.replaceState(null, "", "?run=" + encodeURIComponent(id));
 }
 $("runs").onchange = (ev) => open(ev.target.value);
