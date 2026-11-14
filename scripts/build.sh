@@ -9,13 +9,16 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 files=$(find cmd internal -name '*.go' -type f | LC_ALL=C sort)
-hash=$( (cat go.mod; for f in $files; do echo "== $f"; cat "$f"; done) | shasum -a 256 | cut -c1-12)
+# The hash names the logic that decides. The web view (internal/ui, cmd/hc/ui.go) only
+# reads run logs, so changing it does not change the hash.
+logic=$(echo "$files" | grep -v -e '^internal/ui/' -e '^cmd/hc/ui\.go$')
+hash=$( (cat go.mod; for f in $logic; do echo "== $f"; cat "$f"; done) | shasum -a 256 | cut -c1-12)
 version=$(sed -n 's/^[[:space:]]*Version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' internal/engine/version.go | head -1)
 
 mkdir -p runs/engines bin
 snapshot="runs/engines/${version}-${hash}.tar.gz"
 if [ ! -f "$snapshot" ]; then
-  tar -czf "$snapshot" go.mod scripts $files
+  tar -czf "$snapshot" go.mod scripts internal/ui/static $files
   printf '{"version":"%s","hash":"%s","builtAt":"%s"}\n' "$version" "$hash" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> runs/engines/builds.jsonl
 fi
 

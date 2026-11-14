@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dispatch board</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg: #0f1419; --panel: #171d25; --panel2: #1e2630; --line: #2a3441; --text: #e6edf3; --dim: #8b98a8;
+    --good: #3fb950; --warn: #d29922; --bad: #f85149; --blue: #58a6ff; --car: #39d353; --accent: #f0b429;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  #app { display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: 1fr 380px; height: 100%; }
+  header { grid-column: 1 / 3; display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+  header .sub { color: var(--dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; max-width: 420px; }
+  .badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--panel2); color: var(--dim); border: 1px solid var(--line); }
+  .badge.live { background: rgba(248,81,73,.15); color: #ff7b72; border-color: rgba(248,81,73,.5); }
+  .badge.live::before { content: "● "; animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+  #clock { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 650; }
+  #map { grid-row: 2; grid-column: 1; background: #0b0f14; }
+  .leaflet-tile-pane { filter: grayscale(.75) brightness(.72) contrast(1.15); }
+  .leaflet-container { background: #0b0f14; font: inherit; }
+  .place-label { background: none; border: 0; box-shadow: none; color: #cbd5e1; font-size: 11px; font-weight: 600; text-shadow: 0 0 3px #000, 0 0 3px #000; padding: 0; }
+  .place-label::before { display: none; }
+  aside { grid-row: 2; grid-column: 2; background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .card.wide { grid-column: 1 / 3; }
+  .card .k { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+  .card .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .card .v small { font-size: 12px; color: var(--dim); font-weight: 500; }
+  .card .v.big { font-size: 30px; }
+  .good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--dim); margin: 4px 0 6px; font-weight: 600; }
+  #chart { width: 100%; height: 90px; display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  td, th { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--line); }
+  td:nth-child(2), th:nth-child(2) { text-align: left; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  th { color: var(--dim); font-weight: 600; font-size: 11px; }
+  tr.me td { background: rgba(240,180,41,.14); color: #ffd866; font-weight: 650; }
+  tr.out td { color: var(--dim); }
+  #ticker { font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+  #ticker div { display: flex; gap: 8px; }
+  #ticker time { color: var(--dim); font-variant-numeric: tabular-nums; flex: none; width: 66px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--dim); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+  footer { grid-column: 1 / 3; display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: var(--panel); border-top: 1px solid var(--line); }
+  footer button, footer select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; font: inherit; cursor: pointer; }
+  footer button:hover { border-color: var(--blue); }
+  footer button.on { background: rgba(88,166,255,.18); border-color: var(--blue); }
+  #slider { flex: 1; accent-color: var(--blue); }
+  #span { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  @media (max-width: 900px) { #app { grid-template-columns: 1fr; grid-template-rows: auto 55vh auto auto; } aside { grid-column: 1; grid-row: 3; border-left: 0; } footer { grid-row: 4; } header { flex-wrap: wrap; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Dispatch board</h1>
+    <select id="runs" title="Run to show"></select>
+    <span id="mode" class="badge">replay</span>
+    <span id="sub" class="sub"></span>
+    <div id="clock">–</div>
+  </header>
+  <div id="map"></div>
+  <aside>
+    <div class="cards">
+      <div class="card wide"><div class="k">Margin</div><div class="v big" id="s-margin">€0</div></div>
+      <div class="card"><div class="k">Revenue</div><div class="v" id="s-revenue">€0</div></div>
+      <div class="card"><div class="k">Driver fees</div><div class="v" id="s-fees">€0</div></div>
+      <div class="card"><div class="k">Orders won</div><div class="v" id="s-won">0</div></div>
+      <div class="card"><div class="k">On time</div><div class="v" id="s-ontime">–</div></div>
+      <div class="card"><div class="k">On the road</div><div class="v" id="s-road">0</div></div>
+      <div class="card"><div class="k">Waiting for a driver</div><div class="v" id="s-wait">0</div></div>
+      <div class="card"><div class="k">Driver booked</div><div class="v" id="s-booked">0</div></div>
+      <div class="card"><div class="k">Delivered</div><div class="v" id="s-done">0</div></div>
+    </div>
+    <div>
+      <h2>Margin over the week</h2>
+      <svg id="chart" viewBox="0 0 356 90" preserveAspectRatio="none"></svg>
+    </div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--car)"></span>car on the road</span>
+      <span><span class="dot" style="background:var(--bad)"></span>late</span>
+      <span><span class="dot" style="background:none;border:2px solid var(--blue)"></span>driver on the way</span>
+      <span><span class="dot" style="background:var(--warn)"></span>cars waiting at a site</span>
+    </div>
+    <div id="feed-box" hidden>
+      <h2 id="feed-title">Final: live ranking</h2>
+      <table><thead><tr><th>#</th><th>Team</th><th>Margin</th><th>Orders</th><th>On time</th></tr></thead><tbody id="feed"></tbody></table>
+    </div>
+    <div>
+      <h2>Latest</h2>
+      <div id="ticker"></div>
+    </div>
+  </aside>
+  <footer>
+    <button id="play">Pause</button>
+    <select id="speed" title="Replay speed">
+      <option value="30">30 min / s</option>
+      <option value="60">1 h / s</option>
+      <option value="120" selected>2 h / s</option>
+      <option value="240">4 h / s</option>
+      <option value="720">12 h / s</option>
+    </select>
+    <input id="slider" type="range" min="0" max="1" value="0" step="1">
+    <span id="span"></span>
+    <button id="live" hidden>Go live</button>
+  </footer>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+"use strict";
+const DAY = 1440, DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"];
+const TRIP_SLACK = 1.6;      // a car left at a closed site counts as delivered the next morning: do not crawl all night
+const LIVE_TRIP = 1.15;      // while the delivery is unknown, a trip takes this multiple of the route's minutes
+const APPROACH = 1.3;        // the same for a driver's way to the pickup
+const TICKER_ROWS = 14, FRAME_MS = 50, STATS_MS = 250, LIVE_EASE = 0.08;
+const $ = (id) => document.getElementById(id);
+const euro = (cents) => (cents < 0 ? "−" : "") + "€" + Math.abs(Math.round(cents / 100)).toLocaleString("en-US");
+const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const clock = (t) => `${DAYS[Math.floor(t / DAY)] || "?"} ${String(Math.floor(t % DAY / 60)).padStart(2, "0")}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+
+// ---- map -------------------------------------------------------------------
+const map = L.map("map", { preferCanvas: true, zoomControl: true }).setView([63.2, 26], 6);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 12, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, routes by OSRM' }).addTo(map);
+const layers = { routes: L.layerGroup().addTo(map), places: L.layerGroup().addTo(map), moving: L.layerGroup().addTo(map) };
+let places = {}, routes = {}, homes = {}, team = "";
+
+function decode(line) { // Google polyline, precision 5
+  const pts = []; let i = 0, lat = 0, lon = 0;
+  while (i < line.length) {
+    for (const which of [0, 1]) {
+      let shift = 0, result = 0, b;
+      do { b = line.charCodeAt(i++) - 63; result |= (b & 31) << shift; shift += 5; } while (b >= 32);
+      const d = (result & 1) ? ~(result >> 1) : (result >> 1);
+      if (which === 0) lat += d; else lon += d;
+    }
+    pts.push([lat / 1e5, lon / 1e5]);
+  }
+  return pts;
+}
+function measured(pts) {
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], (pts[i][1] - pts[i - 1][1]) * 0.5));
+  return { pts, cum, len: cum[cum.length - 1] || 1 };
+}
+const routeCache = new Map();
+function route(a, b) { // the road between two places as measured points, in the direction a -> b
+  const key = a + ">" + b;
+  let r = routeCache.get(key);
+  if (r) return r;
+  const pa = places[a], pb = places[b];
+  if (!pa || !pb) return null;
+  const stored = a < b ? routes[a + "|" + b] : routes[b + "|" + a];
+  let pts = [[pa.lat, pa.lon], [pb.lat, pb.lon]], minutes = 0;
+  if (a !== b && stored) {
+    pts = decode(stored.line); if (a > b) pts.reverse();
+    pts.unshift([pa.lat, pa.lon]); pts.push([pb.lat, pb.lon]); minutes = stored.min;
+  }
+  r = measured(pts); r.minutes = minutes || Math.max(10, Math.round(r.len * 111 * 1.3 / 80 * 60));
+  routeCache.set(key, r);
+  return r;
+}
+function along(r, f) {
+  f = Math.max(0, Math.min(1, f));
+  const d = f * r.len; let lo = 0, hi = r.cum.length - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (r.cum[mid] <= d) lo = mid; else hi = mid; }
+  const seg = (r.cum[hi] - r.cum[lo]) || 1, k = (d - r.cum[lo]) / seg;
+  return [r.pts[lo][0] + (r.pts[hi][0] - r.pts[lo][0]) * k, r.pts[lo][1] + (r.pts[hi][1] - r.pts[lo][1]) * k];
+}
+
+// ---- the run's log and the state at a minute -------------------------------
+let log = [], cursor = 0, dirty = true, S = null;
+const pickedAt = new Map(), deliveredAt = new Map(); // "order|leg" -> minute, known ahead in a replay
+let T = 0, t0 = 0, tMax = 0, playing = true, following = false, ended = true, runID = "", source = null;
+
+function fresh() {
+  return { orders: new Map(), gigs: new Map(), legGig: new Map(), drivers: new Map(), money: { margin: 0, revenue: 0, fees: 0, refunds: 0 },
+    n: { requests: 0, won: 0, lost: 0, delivered: 0, late: 0, cancelled: 0 }, series: [], ticker: [] };
+}
+function gigOf(id) { // a gig's record, made on first mention: its post and its booking can share a minute
+  let g = S.gigs.get(id);
+  if (!g) { g = { id, legs: [], status: "open", driver: null, startedAt: null, from: null, lastPlace: null, lastAt: null }; S.gigs.set(id, g); }
+  return g;
+}
+function note(t, text, cls) { S.ticker.push({ t, text, cls }); if (S.ticker.length > 60) S.ticker.splice(0, 20); }
+function legsOf(order) { return (order.legs || []).map((l) => ({ from: l.pickup.placeId, to: l.delivery.placeId, picked: null, delivered: null })); }
+
+function apply(it) {
+  const e = it.e, t = it.t;
+  switch (it.k) {
+    case "price_request": S.n.requests++; break;
+    case "order_lost": S.n.lost++; break;
+    case "order_won": {
+      const o = e.order;
+      S.orders.set(o.id, { id: o.id, price: o.priceCents, deadline: o.deadline, legs: legsOf(o), wonAt: t, gig: null, late: false, cancelled: false, urgent: false });
+      S.n.won++; note(t, `Won ${o.id} ${name(o.legs[0].pickup.placeId)} → ${name(o.legs[0].delivery.placeId)} for ${euro(o.priceCents)}`);
+      break;
+    }
+    case "order_changed": {
+      const o = e.order && S.orders.get(e.order.id); if (!o) break;
+      o.deadline = e.order.deadline;
+      legsOf(e.order).forEach((l, i) => { if (o.legs[i] && o.legs[i].delivered === null) { o.legs[i].to = l.to; if (o.legs[i].picked === null) o.legs[i].from = l.from; } });
+      note(t, `Dealer changed ${o.id}`, "warn"); break;
+    }
+    case "order_cancelled": { const o = S.orders.get(e.orderId); if (o && !o.cancelled) { o.cancelled = true; S.n.cancelled++; note(t, `Dealer cancelled ${o.id}`, "warn"); } break; }
+    case "deadline_close": { const o = S.orders.get(e.orderId); if (o) o.urgent = true; break; }
+    case "posted": {
+      gigOf(it.gig).legs = it.legs;
+      for (const l of it.legs) S.legGig.set(l.orderId + "|" + l.leg, it.gig);
+      break;
+    }
+    case "withdrawn": case "gig_expired": { const g = gigOf(it.gig || e.gigId); if (g.status === "open") g.status = "gone"; break; }
+    case "gig_booked": { const g = gigOf(e.gigId); g.status = "booked"; g.driver = e.driverId; break; }
+    case "gig_dropped": case "no_show": { const g = gigOf(e.gigId); g.status = "open"; g.driver = null; note(t, `Driver gave gig ${e.gigId} back`, "warn"); break; }
+    case "gig_started": {
+      const g = gigOf(e.gigId);
+      const seen = S.drivers.get(e.driverId);
+      g.status = "working"; g.driver = e.driverId; g.startedAt = t;
+      g.from = seen && t - seen.at < DAY ? seen.place : homes[e.driverId] || null;
+      break;
+    }
+    case "picked_up": {
+      const o = S.orders.get(e.orderId), g = S.gigs.get(e.gigId);
+      if (o && o.legs[e.leg]) { o.legs[e.leg].picked = t; o.legs[e.leg].from = e.placeId; }
+      if (g) { g.lastPlace = e.placeId; g.lastAt = t; }
+      break;
+    }
+    case "delivered": {
+      const o = S.orders.get(e.orderId), g = S.gigs.get(e.gigId);
+      if (o && o.legs[e.leg]) {
+        o.legs[e.leg].delivered = t; o.legs[e.leg].to = e.placeId;
+        if (o.legs.every((l) => l.delivered !== null)) S.n.delivered++;
+      }
+      if (g) { g.lastPlace = e.placeId; g.lastAt = t; if (g.driver) S.drivers.set(g.driver, { place: e.placeId, at: t }); }
+      break;
+    }
+    case "ledger": {
+      const line = e.line, m = S.money;
+      m.margin += line.cents;
+      if (line.kind === "revenue") m.revenue += line.cents;
+      else if (line.kind === "driver_fee") m.fees -= line.cents;
+      else if (line.kind === "late_refund" || line.kind === "undelivered_penalty") {
+        m.refunds -= line.cents;
+        const o = S.orders.get(line.orderId);
+        if (o && !o.late) { o.late = true; S.n.late++; note(t, `${o.id} late: ${euro(-line.cents)} back to the dealer`, "bad"); }
+      }
+      S.series.push([t, m.margin]);
+      break;
+    }
+    case "forecast": note(t, "Snow forecast", "warn"); break;
+  }
+}
+function name(id) { return (places[id] && places[id].name) || id; }
+
+function advance() { // bring the state to minute T
+  if (dirty || (cursor > 0 && log[cursor - 1].t > T)) { S = fresh(); cursor = 0; dirty = false; }
+  while (cursor < log.length && log[cursor].t <= T) apply(log[cursor++]);
+}
+
+function add(msg) { // one message of the run's stream
+  let it = null;
+  if (msg.a) {
+    const a = msg.a, act = a.action || {};
+    if (!a.result || !a.result.ok) return;
+    if (act.type === "post") {
+      const legs = (act.stops || []).filter((s) => s.kind === "pickup").map((s) => ({ orderId: s.orderId, leg: s.leg || 0 }));
+      it = { t: a.at, k: "posted", gig: a.result.id, legs };
+    } else if (act.type === "withdraw") it = { t: a.at, k: "withdrawn", gig: act.gigId };
+  } else if (msg.e) {
+    const e = msg.e; it = { t: e.at, k: e.kind, e };
+    if (e.kind === "picked_up") pickedAt.set(e.orderId + "|" + e.leg, e.at);
+    if (e.kind === "delivered") deliveredAt.set(e.orderId + "|" + e.leg, e.at);
+  }
+  if (!it || typeof it.t !== "number") return;
+  if (!log.length) t0 = Math.floor(it.t / DAY) * DAY;
+  if (log.length && it.t < log[log.length - 1].t) { // out of order: keep the log sorted
+    let i = log.length; while (i > 0 && log[i - 1].t > it.t) i--;
+    log.splice(i, 0, it); if (i < cursor) dirty = true;
+  } else log.push(it);
+  if (it.t > tMax) tMax = it.t;
+}
+
+// ---- drawing ---------------------------------------------------------------
+const placeMarks = {}, movers = new Map();
+function drawPlaces() {
+  layers.places.clearLayers();
+  for (const p of Object.values(places)) {
+    const dot = L.circleMarker([p.lat, p.lon], { radius: 4, color: "#93a4b8", weight: 1, fillColor: "#1f2937", fillOpacity: 1 }).addTo(layers.places);
+    dot.bindTooltip(p.name, { permanent: true, direction: "right", offset: [6, 0], className: "place-label" });
+    const ring = L.circleMarker([p.lat, p.lon], { radius: 0, color: "#d29922", weight: 2, fillColor: "#d29922", fillOpacity: .28, opacity: 0 }).addTo(layers.places);
+    placeMarks[p.id] = { dot, ring };
+  }
+}
+function mover(key, style) {
+  let m = movers.get(key);
+  if (!m) {
+    m = { dot: L.circleMarker([0, 0], style).addTo(layers.moving), line: null, routeKey: "" };
+    movers.set(key, m);
+  }
+  m.used = true; return m;
+}
+function showTrip(key, a, b, frac, style, lineStyle, tip) {
+  const r = route(a, b); if (!r) return;
+  const m = mover(key, style);
+  m.dot.setLatLng(along(r, frac));
+  if (m.color !== style.fillColor) { m.dot.setStyle(style); m.color = style.fillColor; if (m.line) m.line.setStyle(lineStyle); }
+  const rk = a + ">" + b;
+  if (m.routeKey !== rk) {
+    if (m.line) layers.routes.removeLayer(m.line);
+    m.line = L.polyline(r.pts, lineStyle).addTo(layers.routes); m.routeKey = rk;
+    if (tip) m.dot.bindTooltip(tip);
+  }
+}
+function draw() {
+  for (const m of movers.values()) m.used = false;
+  const waiting = {}; let road = 0, wait = 0, booked = 0;
+  const live = (g) => g && (g.status === "booked" || g.status === "working");
+  for (const o of S.orders.values()) {
+    if (o.cancelled) continue;
+    o.legs.forEach((leg, i) => {
+      if (leg.delivered !== null) return;
+      const key = o.id + "|" + i;
+      if (leg.picked !== null) { // on the road
+        const r = route(leg.from, leg.to); if (!r) return;
+        const known = deliveredAt.get(key);
+        const end = known !== undefined ? Math.min(known, leg.picked + r.minutes * TRIP_SLACK) : leg.picked + r.minutes * LIVE_TRIP;
+        const frac = Math.min(known !== undefined ? 1 : 0.97, (T - leg.picked) / Math.max(1, end - leg.picked));
+        const late = o.late || T > o.deadline;
+        showTrip("car:" + key, leg.from, leg.to, frac,
+          { radius: 5.5, color: "#0b0f14", weight: 1.5, fillColor: late ? "#f85149" : "#39d353", fillOpacity: 1 },
+          { color: late ? "#f85149" : "#39d353", weight: 2, opacity: .32 },
+          `${o.id}: ${name(leg.from)} → ${name(leg.to)}, due ${clock(o.deadline)}`);
+        road++;
+      } else { // still at its site
+        const g = S.gigs.get(S.legGig.get(key)), has = live(g);
+        if (has) booked++; else wait++;
+        const w = waiting[leg.from] || (waiting[leg.from] = { n: 0, open: 0, urgent: false });
+        w.n++; if (!has) { w.open++; if (o.urgent || T > o.deadline) w.urgent = true; }
+      }
+    });
+  }
+  for (const g of S.gigs.values()) { // a working driver's way to the next car
+    if (g.status !== "working" || !g.driver) continue;
+    const next = g.legs.find((l) => { const o = S.orders.get(l.orderId); return o && !o.cancelled && o.legs[l.leg] && o.legs[l.leg].picked === null; });
+    if (!next) continue;
+    const target = S.orders.get(next.orderId).legs[next.leg].from, from = g.lastPlace || g.from, since = g.lastAt || g.startedAt;
+    if (!from || from === target || since === null) continue;
+    const r = route(from, target); if (!r) continue;
+    const known = pickedAt.get(next.orderId + "|" + next.leg);
+    const end = known !== undefined ? known : since + r.minutes * APPROACH;
+    const frac = Math.min(known !== undefined ? 1 : 0.95, (T - since) / Math.max(1, end - since));
+    showTrip("drv:" + g.id, from, target, frac,
+      { radius: 4.5, color: "#58a6ff", weight: 2, fillColor: "#0b0f14", fillOpacity: .9 },
+      { color: "#58a6ff", weight: 1.5, opacity: .28, dashArray: "4 6" },
+      `Driver on the way to ${name(target)} for ${next.orderId}`);
+  }
+  for (const [key, m] of movers) {
+    if (m.used) continue;
+    layers.moving.removeLayer(m.dot); if (m.line) layers.routes.removeLayer(m.line); movers.delete(key);
+  }
+  for (const id in placeMarks) {
+    const w = waiting[id], mark = placeMarks[id], ring = mark.ring;
+    const sig = w ? `${w.n}/${w.open}/${w.urgent}` : "";
+    if (mark.sig === sig) continue;
+    mark.sig = sig;
+    if (!w) { ring.setStyle({ opacity: 0, fillOpacity: 0 }); ring.setRadius(0); ring.unbindTooltip(); continue; }
+    const color = w.urgent ? "#f85149" : w.open ? "#d29922" : "#58a6ff";
+    ring.setRadius(6 + 3 * Math.sqrt(w.n)); ring.setStyle({ opacity: .9, fillOpacity: .28, color, fillColor: color });
+    ring.bindTooltip(`${name(id)}: ${w.n} car${w.n > 1 ? "s" : ""} waiting, ${w.open} without a driver`);
+  }
+  return { road, wait, booked };
+}
+
+let lastStats = 0, counts = { road: 0, wait: 0, booked: 0 };
+function stats(now) {
+  if (now - lastStats < STATS_MS) return; lastStats = now;
+  const m = S.money, n = S.n;
+  $("clock").textContent = clock(T);
+  $("s-margin").textContent = euro(m.margin); $("s-margin").className = "v big " + (m.margin >= 0 ? "good" : "bad");
+  $("s-revenue").textContent = euro(m.revenue);
+  $("s-fees").innerHTML = `${euro(m.fees)} <small>${m.revenue > 0 ? Math.round(100 * m.fees / m.revenue) + "%" : ""}</small>`;
+  const decided = n.won + n.lost;
+  $("s-won").innerHTML = `${n.won} <small>${decided ? Math.round(100 * n.won / decided) + "% of quotes" : ""}</small>`;
+  const share = n.delivered ? 1 - Math.min(n.late, n.delivered) / n.delivered : null; // of the orders delivered so far
+  $("s-ontime").innerHTML = share === null ? "–" : `${(100 * share).toFixed(1)}% <small>${n.late} late</small>`;
+  $("s-ontime").className = "v " + (share === null ? "" : share >= 0.95 ? "good" : share >= 0.9 ? "warn" : "bad");
+  $("s-road").textContent = counts.road; $("s-wait").textContent = counts.wait; $("s-wait").className = "v " + (counts.wait > 25 ? "warn" : "");
+  $("s-booked").textContent = counts.booked; $("s-done").textContent = n.delivered;
+  $("ticker").innerHTML = S.ticker.slice(-TICKER_ROWS).reverse().map((r) => `<div class="${r.cls || ""}"><time>${clock(r.t)}</time><span>${esc(r.text)}</span></div>`).join("");
+  chart();
+  $("slider").max = Math.max(tMax, t0 + 1); $("slider").min = t0; if (document.activeElement !== $("slider")) $("slider").value = T;
+  $("span").textContent = `${clock(t0)} – ${clock(tMax)}`;
+  $("mode").textContent = !ended ? (following ? "live" : "live (behind)") : "replay"; $("mode").className = "badge" + (!ended && following ? " live" : "");
+  $("live").hidden = ended || following; $("play").textContent = playing ? "Pause" : "Play";
+}
+function chart() {
+  const s = S.series, W = 356, H = 90, svg = $("chart");
+  if (s.length < 2) { svg.innerHTML = ""; return; }
+  const span = Math.max(tMax - t0, 1); let lo = 0, hi = 1;
+  for (const [, v] of s) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  const step = Math.max(1, Math.floor(s.length / 300)), pts = [];
+  for (let i = 0; i < s.length; i += step) pts.push(`${((s[i][0] - t0) / span * W).toFixed(1)},${(H - 4 - (s[i][1] - lo) / (hi - lo) * (H - 8)).toFixed(1)}`);
+  const last = s[s.length - 1]; pts.push(`${((last[0] - t0) / span * W).toFixed(1)},${(H - 4 - (last[1] - lo) / (hi - lo) * (H - 8)).toFixed(1)}`);
+  const zero = (H - 4 - (0 - lo) / (hi - lo) * (H - 8)).toFixed(1);
+  let days = ""; for (let d = t0 + DAY; d < tMax; d += DAY) days += `<line x1="${(d - t0) / span * W}" x2="${(d - t0) / span * W}" y1="0" y2="${H}" stroke="#2a3441" stroke-width="1"/>`;
+  svg.innerHTML = `${days}<line x1="0" x2="${W}" y1="${zero}" y2="${zero}" stroke="#3b4756" stroke-dasharray="3 4"/><polyline fill="none" stroke="#3fb950" stroke-width="2" points="${pts.join(" ")}"/>`;
+}
+
+// ---- time ------------------------------------------------------------------
+let lastFrame = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (now - lastFrame < FRAME_MS || !log.length) return;
+  const dt = Math.min(now - lastFrame, 500) / 1000; lastFrame = now;
+  if (following && !ended) T += (tMax - T) * LIVE_EASE;              // glide to the newest minute
+  else if (playing) T = Math.min(tMax, T + dt * Number($("speed").value));
+  if (T < t0) T = t0;
+  advance(); counts = draw(); stats(now);
+}
+
+// ---- runs ------------------------------------------------------------------
+async function json(url) { const r = await fetch(url); if (!r.ok) throw new Error(url + ": " + r.status); return r.json(); }
+function label(run) {
+  const m = run.meta || {}, s = run.summary && run.summary.score;
+  const what = m.kind === "final" ? "FINAL" : `L${m.level} ${m.seed || m.policy || ""}`.trim();
+  const when = (m.startedAt || "").slice(5, 16).replace("T", " ");
+  return `${run.live ? "● LIVE  " : ""}${when}  ${what}  ${m.engine || ""}${s ? `  ${euro(s.marginCents)}  ${s.wonOrders} orders  ${(100 * s.onTimeShare).toFixed(1)}%` : ""}`;
+}
+let runList = [];
+function fillRuns(runs) {
+  runList = runs;
+  $("runs").innerHTML = runs.map((r) => `<option value="${esc(r.id)}">${esc(label(r))}</option>`).join("");
+}
+async function loadRuns() {
+  fillRuns(await json("/api/runs?n=80"));
+  const asked = new URLSearchParams(location.search).get("run");
+  if (asked && !runList.find((r) => r.id === asked)) { // an older run than the list holds
+    runList.push({ id: asked, live: false, meta: {} });
+    $("runs").insertAdjacentHTML("beforeend", `<option value="${esc(asked)}">${esc(asked)}</option>`);
+  }
+  const wanted = asked || (runList.find((r) => r.live) || runList[0] || {}).id;
+  if (wanted) { $("runs").value = wanted; await open(wanted); }
+}
+function clearLog() { log = []; cursor = 0; dirty = true; S = fresh(); pickedAt.clear(); deliveredAt.clear(); tMax = 0; }
+async function open(id) {
+  if (source) source.close();
+  const info = runList.find((r) => r.id === id);
+  runID = id; clearLog();
+  T = 0; t0 = 0; ended = !(info && info.live); following = !ended; playing = true;
+  const m = (info && info.meta) || {};
+  $("sub").textContent = [m.kind === "final" ? "final" : m.kind, m.level ? "level " + m.level : "", m.seed ? "seed " + m.seed : "", m.engine ? "engine " + m.engine : "", m.worldId || ""].filter(Boolean).join(" · ");
+  homes = {};
+  try { for (const d of await json(`/api/runs/${id}/roster`)) homes[d.id] = d.homePlaceId; } catch (err) { /* a run without a roster still plays */ }
+  let first = true, opened = false;
+  source = new EventSource(`/api/runs/${encodeURIComponent(id)}/stream`);
+  source.onopen = () => { if (opened) clearLog(); opened = true; }; // a stream that connects again sends the run from its start
+  source.onmessage = (ev) => {
+    add(JSON.parse(ev.data));
+    if (first) { first = false; T = t0 + 8 * 60; }
+  };
+  source.addEventListener("end", () => { ended = true; following = false; source.close(); });
+  history.replaceState(null, "", "?run=" + encodeURIComponent(id));
+}
+
+$("runs").onchange = (ev) => open(ev.target.value);
+$("play").onclick = () => { playing = !playing; if (playing && T >= tMax && ended) T = t0 + 8 * 60; following = false; };
+$("live").onclick = () => { following = true; playing = true; };
+$("slider").oninput = (ev) => { T = Number(ev.target.value); following = false; };
+
+function feed() { // the ranking of a final, from the public feed
+  const es = new EventSource("/api/feed");
+  es.onmessage = (ev) => {
+    const f = JSON.parse(ev.data), box = $("feed-box");
+    if (!f.teams || !f.teams.length || f.status === "none") { box.hidden = true; return; }
+    box.hidden = false;
+    $("feed-title").textContent = `Final: ${f.status === "running" ? "live ranking" : f.status}`;
+    const mine = (t) => team && (String(t.team).toLowerCase() === team.toLowerCase() || String(t.name).toLowerCase() === team.toLowerCase());
+    const rows = f.teams.slice(0, 8); const me = f.teams.find(mine); if (me && !rows.includes(me)) rows.push(me);
+    $("feed").innerHTML = rows.map((t) => `<tr class="${mine(t) ? "me" : t.ranked ? "" : "out"}"><td>${Number(t.rank) || "–"}</td><td title="${esc(t.name)}">${esc(t.name)}</td><td>${euro(Number(t.marginCents) || 0)}</td><td>${Number(t.wonOrders) || 0}</td><td>${(100 * (Number(t.onTimeShare) || 0)).toFixed(1)}%</td></tr>`).join("");
+  };
+}
+
+(async function start() {
+  try {
+    team = (await json("/api/config")).team || "";
+    for (const p of (await json("/api/map")).places) places[p.id] = p;
+    try { routes = await json("/routes.json"); } catch (err) { routes = {}; }
+    drawPlaces();
+    const pts = Object.values(places).map((p) => [p.lat, p.lon]);
+    if (pts.length) map.fitBounds(pts, { padding: [30, 30] });
+    await loadRuns();
+    feed();
+    requestAnimationFrame(frame);
+    setInterval(() => { if (!document.hidden && ended) loadRunsQuiet(); }, 15000);
+  } catch (err) { $("sub").textContent = "Cannot load: " + err.message; }
+})();
+async function loadRunsQuiet() { // a new run shows up in the list without disturbing the one on screen
+  try {
+    const keep = $("runs").value;
+    fillRuns(await json("/api/runs?n=80")); $("runs").value = keep;
+    const live = runList.find((r) => r.live);
+    if (live && live.id !== runID && ended) { $("runs").value = live.id; open(live.id); }
+  } catch (err) { /* the list is refreshed again in a moment */ }
+}
+</script>
+</body>
+</html>

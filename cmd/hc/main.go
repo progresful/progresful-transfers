@@ -29,6 +29,7 @@ const (
   hc worlds                                                                   the team's worlds on the server
   hc final  [-p name=value ...] [-v]                                          play the final / a test final from the live clock
   hc watch  [-team ID]                                                        record the public live feed of a (test) final: every team, every 2 s
+  hc ui     [-addr 127.0.0.1:8790] [-team ID]                                  web view: live map of the run being played and replay of any logged run
   hc rehearse -level 8 [-seed S] [-world ID] [-step 2] [-tick 100ms]          play a practice world through the live code path
   hc replay [-timing] [-p name=value ...] <run folder>                         replay a logged run offline from its HTTP tape
 
@@ -89,6 +90,7 @@ func main() {
 		"versions": cmdVersions,
 		"best":     cmdBest,
 		"watch":    cmdWatch,
+		"ui":       cmdUI,
 	}
 	cmd, ok := commands[os.Args[1]]
 	if !ok {
