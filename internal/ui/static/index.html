@@ -141,6 +141,7 @@
   .ctl.on { background: color-mix(in srgb, var(--marking) 30%, var(--raised)); border-color: var(--marking); }
   .ctl.live { border-color: var(--late); color: var(--late); }
   .ctl select { border: 0; background: none; cursor: pointer; font-weight: 600; outline: none; }
+  .ctl.off { opacity: .4; cursor: default; pointer-events: none; }
   .tl-wrap { position: relative; min-width: 0; padding: 8px 10px 6px 6px; }
   #timeline { display: block; width: 100%; height: 104px; cursor: pointer; touch-action: none; }
   #tl-tip { bottom: 100%; margin-bottom: 2px; }
@@ -264,7 +265,7 @@
   <footer>
     <div class="controls">
       <button class="ctl play" id="play" aria-label="Play or pause">❚❚</button>
-      <label class="ctl" title="Replay speed"><select id="speed" aria-label="Replay speed">
+      <label class="ctl" id="speed-box" title="Replay speed"><select id="speed" aria-label="Replay speed">
         <option value="15">15 min / s</option><option value="30">30 min / s</option><option value="60" selected>1 h / s</option><option value="120">2 h / s</option><option value="360">6 h / s</option>
       </select></label>
       <button class="ctl on" id="skip" title="Run fast through hours in which nothing moves">Skip quiet hours</button>
@@ -645,8 +646,10 @@ function stats(now) {
   put("clock-day", DAY_NAMES[Math.floor(T / DAY)] || ""); put("clock-time", hhmm(T));
   topbar(); quotes(); gigs(); chart();
   const liveNow = !ended && following;
-  html("mode", liveNow ? "<i></i>Live" : !ended ? "Live · behind" : "Replay"); $("mode").className = "pill" + (liveNow ? " live" : "");
+  html("mode", liveNow ? "<i></i>Live" : !ended ? "Live · behind" : wasLive ? "Finished" : "Replay"); $("mode").className = "pill" + (liveNow ? " live" : "");
   $("live").hidden = ended || following;
+  $("speed").disabled = liveNow; $("skip").disabled = liveNow; // a live run moves at the world's pace
+  $("speed-box").title = liveNow ? "A live run plays at the world's own speed" : "Replay speed"; $("speed-box").classList.toggle("off", liveNow); $("skip").classList.toggle("off", liveNow);
   const atEnd = ended && T >= endOfShow() - 1;
   put("play", atEnd ? "↻" : playing ? "❚❚" : "▶"); $("play").title = atEnd ? "Play again" : playing ? "Pause" : "Play";
 }
@@ -825,6 +828,20 @@ tl.el.addEventListener("pointerleave", () => { tl.hover = null; $("tl-tip").hidd
 
 // ---- time ------------------------------------------------------------------
 let lastFrame = 0;
+let finalClock = null, wasLive = false; // the final's world clock from the public feed: { now, at }
+// Real seconds one world hour takes in a final (API.md): 18 by day on weekdays, 6 on Saturday, 9 on the
+// last Monday, 3 at night, on Sunday and after the last Monday.
+function secondsPerHour(t) {
+  const day = Math.floor(t / DAY), minute = t % DAY, daytime = minute >= DAY_START && minute < DAY_END;
+  if (!daytime || day === 6 || day > 7) return 3;
+  return day === 5 ? 6 : day === 7 ? 9 : 18;
+}
+// The world's minute now in a run that is being played: the final's own clock, moved on at the rules'
+// speed since its last reading; without a final (a rehearsal), the newest minute in the log.
+function liveMinute(now) {
+  if (!finalClock) return tMax;
+  return finalClock.now + (now - finalClock.at) / 1000 / secondsPerHour(finalClock.now) * HOUR;
+}
 function quiet() { // nothing on the road and nothing about to happen
   if (!skipQuiet || movers.size > 0) return false;
   return cursor >= log.length || log[cursor].t - T > QUIET_AHEAD;
@@ -835,7 +852,7 @@ function frame(now) {
   const dt = Math.min(now - lastFrame, 400) / 1000; lastFrame = now;
   if (!log.length) { drawTimeline(); return; }
   const end = endOfShow();
-  if (following && !ended) T += (tMax - T) * LIVE_EASE; // glide to the newest minute
+  if (following && !ended) { const target = liveMinute(now); T += (target - T) * (finalClock ? 0.3 : LIVE_EASE); } // the world's own pace
   else if (playing && !scrubbing) T = Math.min(end, T + dt * Number($("speed").value) * (quiet() ? QUIET_FACTOR : 1));
   if (T < t0) T = t0;
   advance(); counts = draw(); stats(now); drawTimeline();
@@ -874,7 +891,7 @@ async function open(id) {
   if (source) source.close();
   const info = runList.find((r) => r.id === id);
   runID = id; clearLog();
-  T = 0; t0 = 0; ended = !(info && info.live); following = !ended; playing = true;
+  T = 0; t0 = 0; ended = !(info && info.live); following = !ended; playing = true; wasLive = !ended;
   const m = (info && info.meta) || {};
   $("runs").title = [m.kind === "final" ? "the final" : m.kind === "board" ? "ranking run" : m.kind ? m.kind + " run" : "", m.engine ? "engine " + m.engine : "", info && !info.live && !info.complete && m.startedAt ? "stopped before the week ended" : ""].filter(Boolean).join(" · ");
   homes = {};
@@ -903,6 +920,7 @@ function feed() { // the ranking of a final, from the public feed
   const es = new EventSource("/api/feed");
   es.onmessage = (ev) => {
     const f = JSON.parse(ev.data), box = $("feed-box");
+    finalClock = f.status === "running" && typeof f.now === "number" ? { now: f.now, at: performance.now() } : null;
     if (!f.teams || !f.teams.length || f.status === "none") { box.hidden = true; return; }
     box.hidden = false;
     $("feed-title").textContent = f.status === "running" ? "Final · live ranking" : "Final · " + f.status;
