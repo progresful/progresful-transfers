@@ -253,8 +253,11 @@ type Params struct {
 	// deadline pressure: from FeeMid when the clock stops to HoldMax when the pressure
 	// starts, in HoldSteps steps. A gig that found no driver at FeeMid needs more than
 	// FeeMid, and most drivers book the day before they drive. 0 keeps the fee at FeeMid.
-	HoldMax   float64 `json:"holdMax"`
-	HoldSteps int     `json:"holdSteps"`
+	HoldMax float64 `json:"holdMax"`
+	// WeekendHold is HoldMax for a gig posted before the weekend whose last pickup falls
+	// after it, on the last Monday (0: HoldMax as for every gig).
+	WeekendHold float64 `json:"weekendHold"`
+	HoldSteps   int     `json:"holdSteps"`
 	// LeadDrive starts the deadline pressure earlier for a long gig: LeadMin plus this
 	// multiple of the gig's road minutes before the last on-time pickup. A driver for a
 	// long lane has a long way to the car too.

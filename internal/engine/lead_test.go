@@ -88,3 +88,37 @@ func TestHoldRampRisesBetweenDiscoveryAndPressure(t *testing.T) {
 		t.Errorf("a gig posted inside the pressure window should keep its plan: %+v vs %+v", short, want)
 	}
 }
+
+// A gig posted on Friday for a car due on the Monday waits through the weekend: with
+// WeekendHold its fee creeps up less in that time than HoldMax would let it; a gig due
+// within the week is not touched.
+func TestWeekendHoldLimitsTheCreepOverTheWeekend(t *testing.T) {
+	top := func(weekendHold float64, now, deadline int) int {
+		p := DefaultParamsFor(8)
+		p.Chains, p.TrustRush, p.WeekendHold = 0, 0, weekendHold
+		e := New(8, p, testMap(t))
+		e.now, e.endsAt = now, 14280
+		ob := chainOrder(e, "R1", "a", "b", now, deadline)
+		e.dispatch(ob)
+		fee := 0
+		for _, pending := range e.Drain() {
+			if pending.Action.Type != api.ActPost {
+				continue
+			}
+			for _, s := range pending.Action.Schedule {
+				if s.At <= ob.order.LastPickupAt-p.LeadMin {
+					fee = max(fee, s.FeeCents) // the fee before the deadline pressure starts
+				}
+			}
+		}
+		return fee
+	}
+	friday, monday := cal.At(4, 14*cal.Hour), cal.At(7, 20*cal.Hour)
+	if plain, held := top(0, friday, monday), top(1.05, friday, monday); held >= plain || held > feeOf(3000, 1.05) {
+		t.Errorf("over the weekend the fee creeps to %d with the switch and %d without: want it lower and at most %d", held, plain, feeOf(3000, 1.05))
+	}
+	tuesday := cal.At(1, 10*cal.Hour)
+	if plain, held := top(0, tuesday, cal.At(2, 20*cal.Hour)), top(1.05, tuesday, cal.At(2, 20*cal.Hour)); held != plain {
+		t.Errorf("a gig due within the week changed: %d against %d", held, plain)
+	}
+}

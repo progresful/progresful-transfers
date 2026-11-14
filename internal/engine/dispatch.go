@@ -119,6 +119,9 @@ func (e *Engine) visible(plan []api.FeeStep) []api.FeeStep {
 	return plan
 }
 
+// weekendOverDay is the day after the week's weekend: the last Monday.
+const weekendOverDay = 7
+
 // Posting modes: how much room the gig's windows leave.
 const (
 	modeBuffered = iota // delivery window ends a buffer before the deadline
@@ -326,6 +329,12 @@ func (e *Engine) reprice(g *gigBook) {
 func (e *Engine) planFor(g *gigBook, lastPickup int) []api.FeeStep {
 	p := e.P
 	p.FeeMax *= e.feeBoost(g)
+	if p.WeekendHold > 0 && cal.DayOf(lastPickup) >= weekendOverDay && cal.DayOf(e.now) < weekendOverDay {
+		// A car due after the weekend waits through two days on which few drivers look. A
+		// fee that creeps up all that time is dearer on the Monday, when drivers are free
+		// and no new order competes: the hold rises only to WeekendHold for such a gig.
+		p.HoldMax = p.WeekendHold
+	}
 	if p.LeadDrive > 0 {
 		p.LeadMin += int(p.LeadDrive * float64(e.gigDrive(g)))
 	}
