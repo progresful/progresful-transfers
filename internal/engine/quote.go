@@ -415,7 +415,7 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 		mult := e.costMultFor(req, ref) + e.P.RiskSlope*risk
 		cost := float64(req.ReferenceFeeCents)*mult*e.dayCost()*e.laneCost(req)*e.readyCost(req, ref) + risk*(e.P.RiskCost*list+e.P.TrustGuard*e.trustAtStake(d))
 		var chance float64
-		ratio, chance = bestRatioAt(level, width, cost/list, e.trustWorth(d)/list, float64(floor)/list)
+		ratio, chance = bestRatioAt(level, width, cost/list, e.trustWorthFor(d, risk)/list, float64(floor)/list)
 		if chance < e.P.MinWinChance {
 			return 0 // the price that pays is far above what this dealer accepts
 		}
@@ -463,6 +463,16 @@ func (e *Engine) trustWorth(d *dealerBook) float64 {
 		return 0
 	}
 	return e.P.TrustInvest * trustStep * e.dealerOrdersToCome(d) * float64(e.avgListCents())
+}
+
+// trustWorthFor is trustWorth for a request with the given modelled lateness risk: with
+// TrustInvestRisk set, only a request at or under that risk is bid for its trust. A late
+// order halves the dealer's trust, so trust is built on the orders that are safe.
+func (e *Engine) trustWorthFor(d *dealerBook, risk float64) float64 {
+	if e.P.TrustInvestRisk > 0 && risk > e.P.TrustInvestRisk {
+		return 0
+	}
+	return e.trustWorth(d)
 }
 
 // trustAtStake is the worth (cents) of the trust that one late order would destroy: the

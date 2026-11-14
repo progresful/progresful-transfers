@@ -167,6 +167,9 @@ type Params struct {
 	// quote claims; TrustInvest scales the extra worth of an order that builds trust.
 	TrustBoost  float64 `json:"trustBoost"`
 	TrustInvest float64 `json:"trustInvest"`
+	// TrustInvestRisk limits TrustInvest to requests whose modelled lateness risk is at or
+	// under it (0: every request).
+	TrustInvestRisk float64 `json:"trustInvestRisk"`
 	// ShareCap and ShareMarkup: the competitor cuts its prices for a dealer whose requests
 	// we mostly win. Above ShareCap of a dealer's requests won, quotes to it go up by
 	// ShareMarkup, to stay under the competitor's radar. ShareCap 1 turns it off.
@@ -489,7 +492,10 @@ func DefaultParamsFor(level int) Params {
 			// is owed and a higher fee did not bring it in sooner). On the 24 worlds: +419 a
 			// week (s.e. 137, better in 16 of them), 97.0 % on time against 96.9 %, worst
 			// week 94.7 % against 94.1 %; joined on Thursday it earns the same (4,964).
-			p.FeeMid, p.HoldMax = 1.05, 1.25
+			// e19: the hold starts at 1.0x, not 1.05x: +226 more (s.e. 96, better in 17),
+			// 97.1 % on time, worst week 94.8 %. A start of 0.95x, a rise to 1.35x, an
+			// opening fee of 0.75x and a slower clock (20 minutes a step) all earn less.
+			p.FeeMid, p.HoldMax = 1.0, 1.25
 			p.LateMax = 1
 		}
 		if level == paramsShortageLevel {
