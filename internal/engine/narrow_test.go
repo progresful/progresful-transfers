@@ -86,6 +86,34 @@ func insideRealHours(t *testing.T, w *api.TimeWindow) {
 	if cal.MinuteOfDay(w.From) < 10*cal.Hour || cal.MinuteOfDay(w.To) > 17*cal.Hour || cal.DayOf(w.From) != cal.DayOf(w.To) || w.To <= w.From {
 		t.Errorf("pickup window %s - %s is not inside 10:00-17:00 of one day", cal.Format(w.From), cal.Format(w.To))
 	}
+	// A driver who plans to come at the window's last minute must still find the site open.
+	if cal.MinuteOfDay(w.To) > 17*cal.Hour-closeMarginMin {
+		t.Errorf("pickup window ends %s: it must end %d minutes before the real closing at 17:00", cal.Format(w.To), closeMarginMin)
+	}
+}
+
+// A car with shorter real hours that fits a day is posted with that day's windows, and
+// the pickup window ends before the site really closes: drivers come at the last minute.
+func TestDayWindowEndsBeforeTheRealClosing(t *testing.T) {
+	now := cal.At(1, 14*cal.Hour) // Tuesday 14:00
+	e := narrowEngine(t, now)
+	req := narrowRequest("R1", "b", now-15, cal.At(2, 20*cal.Hour))
+	e.reqs["R1"] = req
+	order := &api.Order{ID: "R1", DealerID: "D01", Option: api.NextDay, PriceCents: 9000, Deadline: cal.At(2, 20*cal.Hour),
+		Legs: req.Legs, Status: "open", DeliveredAt: []*int{nil}, LastPickupAt: cal.At(2, 19*cal.Hour+30)}
+	e.onWon(order, now)
+	sent := e.Drain()
+	if len(sent) != 1 || sent[0].Action.Type != api.ActPost {
+		t.Fatalf("want one post, got %+v", sent)
+	}
+	if g := e.orders["R1"].legs[0].gig; g.mode != modeDay {
+		t.Fatalf("a short drive fits the day: mode %d, want day windows", g.mode)
+	}
+	pickup := sent[0].Action.Stops[0].Window
+	insideRealHours(t, pickup)
+	if want := cal.At(1, 17*cal.Hour) - closeMarginMin; pickup.To != want || pickup.From != now {
+		t.Errorf("pickup window %s - %s, want now - %s", cal.Format(pickup.From), cal.Format(pickup.To), cal.Format(want))
+	}
 }
 
 // If such a car is in the books all the same (the dealer changed the order, or a restart),

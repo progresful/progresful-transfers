@@ -112,7 +112,7 @@ func (e *Engine) dayFits(req *api.PriceRequest) bool {
 			continue
 		}
 		from := max(pickOpens, delOpens-drive)
-		to := min(pickCloses, delCloses-buffer-drive)
+		to := min(pickCloses-closeMarginMin, delCloses-buffer-drive)
 		if to-from >= dayRoomMin {
 			return true
 		}
@@ -129,8 +129,8 @@ func (e *Engine) realPickupWindow(leg *api.Leg, from int) *api.TimeWindow {
 			return nil
 		}
 		day := cal.DayOf(open)
-		if _, closes, ok := cal.HoursOn(leg.Pickup.Hours, day); ok && cal.At(day, closes)-open >= dayRoomMin {
-			return &api.TimeWindow{From: open, To: min(cal.At(day, closes), e.endsAt)}
+		if _, closes, ok := cal.HoursOn(leg.Pickup.Hours, day); ok && cal.At(day, closes)-closeMarginMin-open >= dayRoomMin {
+			return &api.TimeWindow{From: open, To: min(cal.At(day, closes)-closeMarginMin, e.endsAt)}
 		}
 		from = cal.At(day+1, 0)
 	}
@@ -197,6 +197,11 @@ func (e *Engine) applyFacts(ob *orderBook) {
 // dayRoomMin is the least room (minutes) a day must leave for the pickup to be worth posting.
 const dayRoomMin = 45
 
+// closeMarginMin is how long before a site's real closing a pickup window of our own
+// ends. Drivers come at a window's last minute, and at the closing minute the site is
+// closed: every failed visit at such a site was a driver arriving exactly then.
+const closeMarginMin = 20
+
 // dayWindows finds the first day on which a car with shorter real hours can be collected
 // and delivered inside them, and returns the windows of that day for both stops. late
 // tells that the day is after the deadline. Both sites are dealer sites.
@@ -217,7 +222,7 @@ func (e *Engine) dayWindows(ob *orderBook, buffer int) (pickup, delivery api.Tim
 			arriveBy = min(arriveBy, limit)
 		}
 		from := max(ready, cal.At(day, pickOpens), cal.At(day, delOpens)-drive)
-		to := min(cal.At(day, pickCloses), arriveBy-drive)
+		to := min(cal.At(day, pickCloses)-closeMarginMin, arriveBy-drive)
 		if to-from < dayRoomMin {
 			continue
 		}
