@@ -35,6 +35,7 @@ func cmdRun(ctx context.Context, args []string) error {
 	label := fs.String("label", "dev", "policy label for the run index")
 	note := fs.String("note", "", "free text for the run index")
 	verbose := fs.Bool("v", false, "print the engine's decisions")
+	from := fs.Int("from", 0, "world minute at which the system starts to act (4320: Thursday 00:00, like a test final)")
 	root := fs.String("root", defaultRoot, "folder of run logs")
 	overrides := kvFlag{}
 	fs.Var(overrides, "p", "param override name=value (repeatable)")
@@ -52,7 +53,7 @@ func cmdRun(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	opt := runner.Options{Root: *root, Level: *level, Seed: *seed, Board: *board, Params: params, Label: *label, Note: *note, Out: os.Stdout}
+	opt := runner.Options{Root: *root, Level: *level, Seed: *seed, Board: *board, Params: params, Label: *label, Note: *note, Out: os.Stdout, From: *from}
 	if *verbose {
 		opt.Trace = os.Stdout
 	}

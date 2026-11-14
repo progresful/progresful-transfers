@@ -177,6 +177,9 @@ func (e *Engine) supplied(req *api.PriceRequest) bool {
 // costMult is the cost of an order as a multiple of its typical fee, today: CostMult,
 // moved by how the day's wins compare with what the world's drivers can carry.
 func (e *Engine) costMult() float64 {
+	if e.cold && e.P.JoinCost > 0 {
+		return e.P.JoinCost
+	}
 	if e.P.LoosenCost > 0 {
 		// Drivers to spare: driver time is worth less, so orders cost less.
 		return math.Max(e.P.CostMin, e.P.CostMult-e.P.LoosenCost*e.spare(e.onTimeOutlook()))
@@ -287,6 +290,11 @@ func (e *Engine) onRequest(req *api.PriceRequest) {
 		e.listCount++
 	}
 	e.reqs[req.ID] = req
+	if e.replay && e.P.ReplayQuotes != 1 {
+		// A request of the world's past: it was answered, or not, back then. Pricing it
+		// now would make the dealer's old answer look like an answer to this price.
+		return
+	}
 	e.why, e.whyRisk, e.whyCap = "", 0, 0
 	prices := e.pricesFor(req)
 	if !e.replay {

@@ -36,6 +36,9 @@ type Engine struct {
 	orders  map[string]*orderBook
 	gigs    map[string]*gigBook
 	outbox  []Pending
+	// cold is true in a world that was joined after its first day with no order of ours:
+	// its dealers have gone days without an answer (Params.JoinCost).
+	cold bool
 	// decided is why each price request was answered as it was, for the run log; why,
 	// whyRisk and whyCap are filled while a request is priced.
 	decided []Decision
@@ -91,7 +94,11 @@ func (e *Engine) Begin(snap *api.Snapshot, roster []api.DriverProfile) {
 	for _, d := range roster {
 		e.driver(d.ID).profile = d
 	}
+	e.cold = joinedLate(snap) && len(snap.Orders) == 0
 }
+
+// joinedLate reports whether the world was already past its first day when the system came in.
+func joinedLate(snap *api.Snapshot) bool { return snap.Now >= cal.Day }
 
 // WakeKinds are the events that need an answer; a practice clock stops at them.
 func (e *Engine) WakeKinds() []string {

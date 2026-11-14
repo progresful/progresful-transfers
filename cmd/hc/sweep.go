@@ -109,6 +109,7 @@ func cmdSweep(ctx context.Context, args []string) error {
 	parallel := fs.Int("parallel", 6, "worlds played at once (the team holds at most 8 unfinished)")
 	label := fs.String("label", "sweep", "policy label for the run index")
 	root := fs.String("root", defaultRoot, "folder of run logs")
+	from := fs.Int("from", 0, "world minute at which the system starts to act (4320: Thursday 00:00, like a test final)")
 	fixed, grids, vary := kvFlag{}, kvFlag{}, kvFlag{}
 	fs.Var(fixed, "p", "param override name=value for every run (repeatable)")
 	fs.Var(grids, "grid", "param grid name=v1,v2,... (repeatable; all combinations are played)")
@@ -144,7 +145,7 @@ func cmdSweep(ctx context.Context, args []string) error {
 	fmt.Printf("sweep: level %d, %d settings x %d seeds = %d runs, %d at once\n", *level, len(combos), len(jobs)/len(combos), len(jobs), *parallel)
 	results := runJobs(ctx, s, jobs, *parallel, func(j job) runner.Options {
 		params, _ := engine.DefaultParamsFor(*level).WithOverrides(j.combo)
-		return runner.Options{Root: *root, Level: *level, Seed: j.seed, Params: params, Label: *label, Note: j.combo.String()}
+		return runner.Options{Root: *root, Level: *level, Seed: j.seed, Params: params, Label: *label, Note: j.combo.String(), From: *from}
 	})
 	printSweep(combos, results)
 	return nil

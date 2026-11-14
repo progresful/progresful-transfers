@@ -4,8 +4,8 @@ package engine
 // alter what the engine decides (not for refactors), together with VersionNote. Every
 // run records both, so a result can always be traced to the logic that produced it.
 const (
-	Version     = "e16"
-	VersionNote = "e15 with a cost of 1.2 at level 7 (1.1 took too many orders in rich weeks); as e15: levels 7 and 8 with the belief model of the market (Gaussian beliefs about world, day, dealer and place parts of the price level, updated by every answer) and the lane risk model (lateness chance from lane length, lead, weekday and hour of the answer, same-day and load terms; risk cap 0.12 at level 8, 0.15 at level 7); levels 1-6 as e14"
+	Version     = "e17"
+	VersionNote = "e16 for a full week (same decisions); in a world joined after its first day with no order of ours (a test final starts on Thursday) the cost is 1.1 instead of 1.2, and the past's requests are no longer priced anew on joining (up to e16 each taught the price model a loss that never happened); as e16: levels 7 and 8 with the belief model of the market and the lane risk model (risk cap 0.12 at level 8, 0.15 at level 7, cost 1.2), levels 1-6 as e14"
 )
 
 // SourceHash identifies the exact source the binary was built from. scripts/build.sh

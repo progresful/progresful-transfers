@@ -76,6 +76,16 @@ type Params struct {
 	// for risky orders than RiskCost (which is in list prices), so a lower CostMult adds
 	// volume only where it is safe.
 	RiskSlope float64 `json:"riskSlope"`
+	// JoinCost is the cost multiple in a world that the system joined after its first day
+	// with no order of its own (a test final starts on Thursday): the dealers have had
+	// days of unanswered requests and accept only low prices, and the drivers are free.
+	// 0 keeps CostMult. A full week, and a restart in the middle of one, never use it.
+	JoinCost float64 `json:"joinCost"`
+	// ReplayQuotes 1 restores a fault of the engines up to e16: when joining a world with
+	// a past, they priced the past's requests anew and took the dealers' answers of that
+	// time as answers to those prices, which taught the price model losses that never
+	// happened. Kept only to reproduce those runs.
+	ReplayQuotes int `json:"replayQuotes"`
 	// Premium 1 quotes premium cars (experienced drivers only); 0 declines them. In the
 	// shortage they arrived late almost one time in five and earned a third less.
 	Premium int `json:"premium"`
@@ -458,6 +468,10 @@ func DefaultParamsFor(level int) Params {
 			p.CostMult = 1.2
 			p.RiskSlope = 1
 			p.RiskMax = 0.12
+			// A world joined on Thursday (a test final): 4,899 a week against 4,297 with
+			// the full week's cost on five worlds, 162 orders against 133, both 98.8 % on
+			// time. On full weeks 1.1 earns the same and is less safe, so it stays there.
+			p.JoinCost = 1.1
 		}
 		if level == paramsShortageLevel {
 			// Level 7's competitor is only 12-38 % above the list price, so the cost decides

@@ -41,6 +41,10 @@ type Options struct {
 	Note   string    // free text for the run index
 	Out    io.Writer // day-by-day progress; nil is quiet
 	Trace  io.Writer // engine decisions; nil is quiet
+	// From is the world minute at which the system starts to act; before it the world
+	// runs without it and its requests go to the competitor. 4320 (Thursday 00:00) makes a
+	// practice world like a test final, which is joined in the middle of its week.
+	From int
 }
 
 // Practice creates a practice world, plays it to the end and logs the run.
@@ -73,7 +77,7 @@ func Practice(ctx context.Context, c *api.Client, m *geo.Map, opt Options) (stor
 	if opt.Trace != nil {
 		eng.Logf = func(format string, args ...any) { fmt.Fprintf(opt.Trace, format+"\n", args...) }
 	}
-	_, playErr := play(ctx, world, eng, run, opt.Out)
+	_, playErr := play(ctx, world, eng, run, opt.Out, opt.From)
 	summary := store.Summary{Meta: meta, Stats: eng.Stats()}
 	if playErr != nil {
 		summary.Error = playErr.Error()
@@ -128,7 +132,17 @@ func cleanup(world *api.World, board bool) {
 }
 
 // play steps the world from one event that needs an answer to the next.
-func play(ctx context.Context, world *api.World, eng *engine.Engine, run *store.Run, out io.Writer) (int, error) {
+func play(ctx context.Context, world *api.World, eng *engine.Engine, run *store.Run, out io.Writer, from int) (int, error) {
+	if from > 0 {
+		// The world's past before the system joins: logged, not acted on.
+		past, err := world.AdvanceUntil(ctx, nil, from, nil)
+		if err != nil {
+			return 1, fmt.Errorf("run the world to minute %d: %w", from, err)
+		}
+		for i := range past.Events {
+			run.Event(past.Events[i].Raw)
+		}
+	}
 	snap, err := world.Snapshot(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("snapshot: %w", err)

@@ -36,6 +36,8 @@ func (e *Engine) Rejoin(snap *api.Snapshot, roster []api.DriverProfile, history 
 	for i := range snap.Gigs {
 		e.adoptGig(&snap.Gigs[i])
 	}
+	// A restart in the middle of a week has orders; a world joined late for the first time has none.
+	e.cold = joinedLate(snap) && len(e.orders) == 0
 }
 
 // Resume answers what is open after a Rejoin (and after LoadState, so that quotes use the
@@ -159,6 +161,7 @@ type savedState struct {
 	Quotes  map[string]pendingQuote `json:"quotes"`
 	Dest    map[string]savedDest    `json:"dest,omitempty"`
 	Beliefs *savedBeliefs           `json:"beliefs,omitempty"`
+	Cold    bool                    `json:"cold,omitempty"` // the world was joined late (Params.JoinCost)
 }
 
 // savedBeliefs is the belief model's state (Params.MarketModel 2).
@@ -184,7 +187,7 @@ type savedDealer struct {
 
 // SaveState writes the learned market to a file, atomically.
 func (e *Engine) SaveState(path string) error {
-	state := savedState{Mu: e.market.mu, Seen: e.market.seen, Dealers: map[string]savedDealer{}, Quotes: e.quotes}
+	state := savedState{Mu: e.market.mu, Seen: e.market.seen, Dealers: map[string]savedDealer{}, Quotes: e.quotes, Cold: e.cold}
 	for id, d := range e.market.dealers {
 		state.Dealers[id] = savedDealer{Offset: d.offset, Quotes: d.quotes, Wins: d.wins}
 	}
@@ -225,6 +228,7 @@ func (e *Engine) LoadState(path string) error {
 		return fmt.Errorf("decode engine state: %w", err)
 	}
 	e.market.mu, e.market.seen = state.Mu, state.Seen
+	e.cold = e.cold || state.Cold // a restart keeps what the first join found
 	for id, sd := range state.Dealers {
 		d := e.market.dealer(id)
 		d.offset, d.quotes, d.wins = sd.Offset, sd.Quotes, sd.Wins

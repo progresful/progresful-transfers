@@ -51,6 +51,7 @@ func cmdRehearse(ctx context.Context, args []string) error {
 	step := fs.Int("step", 2, "world minutes per tick")
 	tick := fs.Duration("tick", 100*time.Millisecond, "real time per tick")
 	keep := fs.Bool("keep", false, "keep the practice world when the rehearsal stops (to test a restart with -world)")
+	from := fs.Int("from", 0, "run the new world to this minute without the system first (4320: Thursday 00:00, like a test final)")
 	label := fs.String("label", "rehearse", "policy label for the run index")
 	root := fs.String("root", defaultRoot, "folder of run logs")
 	overrides := kvFlag{}
@@ -70,6 +71,11 @@ func cmdRehearse(ctx context.Context, args []string) error {
 	if *worldID == "" {
 		if world, err = runner.CreatePractice(ctx, s.client, *level, *seed); err != nil {
 			return fmt.Errorf("create world: %w", err)
+		}
+	}
+	if *from > 0 && *worldID == "" {
+		if _, err := world.AdvanceUntil(ctx, nil, *from, nil); err != nil {
+			return fmt.Errorf("run the world to minute %d: %w", *from, err)
 		}
 	}
 	fmt.Printf("rehearsal on practice world %s: %d world minutes every %s\n", world.ID, *step, *tick)
