@@ -460,10 +460,12 @@ func DefaultParamsFor(level int) Params {
 			p.RiskMax = 0.12
 		}
 		if level == paramsShortageLevel {
-			// Level 7's competitor is only 12-38 % above the list price: with the lane model
-			// keeping the risky orders out, a cost of 1.1 wins 377 orders a week instead of
-			// 268 at 96.9 % on time (bench: 8,808 against 7,902). 1.0 wins 449 and is late.
-			p.CostMult = 1.1
+			// Level 7's competitor is only 12-38 % above the list price, so the cost decides
+			// how many orders are won. On 16 fresh worlds a cost of 1.2 earns 10,551 a week
+			// at 97.1 % on time (worst week 95.2 %, 356 orders); 1.1 looked best on the eight
+			// bench weeks but takes 424 orders there for 10,314 at 96.4 % (worst 92.7 %), and
+			// in a ranking round it took up to 522 a week and one week ended at 90.0 %.
+			p.CostMult = 1.2
 			p.RiskMax = 0.15
 		}
 	}
