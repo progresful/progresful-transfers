@@ -839,7 +839,7 @@ function label(run) {
   const state = run.live ? "● LIVE · " : !run.complete ? "stopped early · " : "";
   return `${state}${m.startedAt.slice(11, 16)} · ${what}${s ? ` · ${euro(s.marginCents)} · ${s.wonOrders} orders · ${(100 * s.onTimeShare).toFixed(1)}% on time` : ""}`;
 }
-let runList = [];
+let runList = [], announced = "";
 function fillRuns(runs) {
   runList = runs;
   $("runs").innerHTML = runs.map((r) => `<option value="${esc(r.id)}">${esc(label(r))}</option>`).join("");
@@ -906,7 +906,10 @@ async function refreshRuns() { // a new run shows up in the list; a run that sta
     const keep = $("runs").value;
     fillRuns(await json("/api/runs?n=80")); $("runs").value = keep;
     const live = runList.find((r) => r.live);
-    if (live && live.id !== runID && ended) { $("runs").value = live.id; open(live.id); }
+    // A run that has just started takes over, and so does the run on screen when it starts to move again;
+    // a replay picked while a run is live is left alone.
+    if (live && ended && (live.id !== announced || live.id === runID)) { $("runs").value = live.id; open(live.id); }
+    if (live) announced = live.id;
   } catch (err) { /* the list is read again in a moment */ }
 }
 (async function start() {

@@ -138,8 +138,10 @@ func TestRunsListAndLiveFlag(t *testing.T) {
 	writeRun(t, root, "20261114-100000-L8-stopped-2", map[string]string{metaFile: `{"runId":"b"}`, eventsFile: ""})
 	writeRun(t, root, "20261114-110000-live-L8-now", map[string]string{metaFile: `{"runId":"c"}`, eventsFile: ""})
 	stale := time.Now().Add(-10 * time.Minute)
-	if err := os.Chtimes(filepath.Join(root, "20261114-100000-L8-stopped-2", eventsFile), stale, stale); err != nil {
-		t.Fatal(err)
+	for _, name := range []string{eventsFile, metaFile} {
+		if err := os.Chtimes(filepath.Join(root, "20261114-100000-L8-stopped-2", name), stale, stale); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)

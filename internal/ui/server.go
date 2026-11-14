@@ -37,7 +37,7 @@ const (
 	mapFile      = "map.json"
 	tailEvery    = 400 * time.Millisecond
 	keepAlive    = 15 * time.Second
-	liveWithin   = 90 * time.Second // a run that wrote this lately is being played
+	liveWithin   = 3 * time.Minute // a run that wrote this lately is being played
 	maxRuns      = 200
 	defaultRuns  = 40
 	maxLineBytes = 4 << 20
@@ -156,13 +156,29 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request) {
 			}
 			_ = json.Unmarshal(summary, &sum)
 			info.Complete = sum.WorldEnded
-		} else if written, err := os.Stat(filepath.Join(dir, eventsFile)); err == nil {
+		} else {
 			// No summary yet: the run is being played if it wrote lately, else it was stopped.
-			info.Live = time.Since(written.ModTime()) < liveWithin
+			info.Live = time.Since(lastWrite(dir)) < liveWithin
 		}
 		out = append(out, info)
 	}
 	writeJSON(w, out)
+}
+
+// lastWrite is when a run last wrote to any of its files. The tape of requests is written
+// all the time while a run is played, also in hours without events.
+func lastWrite(dir string) time.Time {
+	var newest time.Time
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return newest
+	}
+	for _, e := range entries {
+		if info, err := e.Info(); err == nil && info.ModTime().After(newest) {
+			newest = info.ModTime()
+		}
+	}
+	return newest
 }
 
 // roster serves where each driver of the run's world lives.
