@@ -107,3 +107,23 @@ func TestTradeInIsJudgedByTheNewCar(t *testing.T) {
 		t.Error("without multi-car gigs the old car is a gig of its own")
 	}
 }
+
+// The fee model: a car ready later that goes to a town full of drivers books cheaper
+// than one ready today that goes where nobody lives.
+func TestExpectedFeeMultFollowsWhereAndWhen(t *testing.T) {
+	e := New(8, DefaultParamsFor(8), testMap(t))
+	roster := make([]api.DriverProfile, 0, 200)
+	for i := 0; i < 200; i++ {
+		roster = append(roster, api.DriverProfile{ID: "d" + string(rune('a'+i%26)) + string(rune('a'+i/26)), HomePlaceID: "b"})
+	}
+	e.Begin(&api.Snapshot{Now: 0, EndsAt: 14280}, roster)
+	monday := cal.At(0, 10*cal.Hour)
+	later := testLeg(cal.At(1, 9*cal.Hour))                 // a -> b, ready tomorrow, delivery where 200 drivers live
+	today := testLeg(monday)                                // ready now
+	today.Pickup.PlaceID, today.Delivery.PlaceID = "b", "a" // delivery where no driver lives
+	cheap := e.expectedFeeMult(&later, monday, api.NextDay)
+	dear := e.expectedFeeMult(&today, cal.At(4, 15*cal.Hour), api.SameDay)
+	if cheap >= dear || cheap < 0.5 || dear > 1.6 {
+		t.Errorf("expected fee multiples: easy gig %.2f, hard gig %.2f", cheap, dear)
+	}
+}

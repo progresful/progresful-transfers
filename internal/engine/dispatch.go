@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"math"
+
 	"highwaycoins/internal/api"
 	"highwaycoins/internal/cal"
 )
@@ -19,9 +21,16 @@ func (e *Engine) dispatch(ob *orderBook) {
 	}
 	var free []int
 	for _, i := range ob.undelivered() {
-		if lb := &ob.legs[i]; lb.gig == nil && !lb.pickedUp && e.now >= lb.retryAt {
+		lb := &ob.legs[i]
+		if lb.gig != nil && !lb.gig.live() {
+			lb.gig = nil // its gig is gone: the car needs a new one
+		}
+		if lb.gig == nil && !lb.pickedUp && e.now >= lb.retryAt {
 			free = append(free, i)
 		}
+	}
+	if len(free) == 1 && e.tryChain(ob) {
+		return
 	}
 	for _, group := range e.groupLegs(ob, free) {
 		e.post(ob, group)
@@ -116,6 +125,7 @@ const (
 	modeTight           // the order's own windows: on time only without the buffer
 	modeLate            // no on-time pickup left: the world's windows run to its end
 	modeDay             // real hours shorter than stated: both stops get one day's windows
+	modeChain           // two cars of two orders in one gig, for a limited time
 )
 
 // buffer is the minutes the delivery should arrive before the deadline, to absorb real driving times.
@@ -133,6 +143,9 @@ func (e *Engine) post(ob *orderBook, legs []int) {
 	buffer := e.buffer(ob, legs)
 	base := e.baseFee(ob, legs)
 	g := &gigBook{status: gigPending, base: base, postedAt: e.now, mode: modeLate}
+	if e.Level >= levelRiskTrained {
+		g.feeMult = e.gigFeeMult(ob, legs)
+	}
 	for _, i := range legs {
 		g.legs = append(g.legs, legRef{orderID: ob.order.ID, leg: i})
 	}
@@ -290,6 +303,11 @@ func (e *Engine) reprice(g *gigBook) {
 func (e *Engine) planFor(g *gigBook, lastPickup int) []api.FeeStep {
 	p := e.P
 	p.FeeMax *= e.feeBoost(g)
+	if p.OpenByGig == 1 && g.feeMult > 0 {
+		// The gig opens near the fee it is expected to book at, and holds a little above it.
+		p.FeeStart, p.FeeMid = g.feeMult*p.OpenShare, g.feeMult*p.MidShare
+		p.FeeMax = math.Max(p.FeeMax, p.FeeMid)
+	}
 	price := e.priceOf(g)
 	onTimeCap, lateCap := int(e.P.OnTimePriceCap*float64(price)), int(e.P.LatePriceCap*float64(price))
 	switch g.mode {
@@ -299,6 +317,10 @@ func (e *Engine) planFor(g *gigBook, lastPickup int) []api.FeeStep {
 	case modeTight:
 		g.bookableUntil = lastPickup
 		return capSchedule([]api.FeeStep{{At: e.now, FeeCents: feeOf(g.base, p.FeeMax)}}, onTimeCap)
+	case modeChain:
+		// bookableUntil is the end of the attempt, set when the chain was posted.
+		g.bookableUntil = g.chainUntil
+		return capSchedule(p.Schedule(e.now, lastPickup, g.base), onTimeCap)
 	case modeDay:
 		// bookableUntil is the end of the day's pickup window, set when the gig was posted.
 		if g.dayLate {
@@ -350,7 +372,11 @@ func (e *Engine) replan(g *gigBook) {
 		return
 	}
 	current := fromNow(g.plan, e.now)
-	fresh := floorSchedule(e.planFor(g, e.lastPickupOfGig(g)), current[0].FeeCents)
+	last := e.lastPickupOfGig(g)
+	if g.mode == modeChain {
+		last = g.chainLast
+	}
+	fresh := floorSchedule(e.planFor(g, last), current[0].FeeCents)
 	if sameSchedule(current, fresh) {
 		return
 	}

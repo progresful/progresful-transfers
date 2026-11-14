@@ -149,6 +149,10 @@ func (e *Engine) onViewed(ev *api.Event) {
 	e.sawDriver(ev.DriverID, ev.At)
 	if g := e.gigs[ev.GigID]; g != nil {
 		g.views++
+		if g.viewers == nil {
+			g.viewers = map[string]int{}
+		}
+		g.viewers[ev.DriverID] = ev.At
 	}
 }
 
@@ -185,6 +189,12 @@ func (e *Engine) claimLeg(ob *orderBook, leg int, g *gigBook) {
 		other.status = gigWithdrawn
 		e.stats.Duplicates++
 		e.send(api.Action{Type: api.ActWithdraw, GigID: other.id}, nil)
+		// Any other car of that gig (a chain) is free again; the review posts it.
+		for _, ref := range other.legs {
+			if o := e.orders[ref.orderID]; o != nil && o.legs[ref.leg].gig == other {
+				o.legs[ref.leg].gig = nil
+			}
+		}
 	}
 	lb.gig = g
 }
@@ -227,6 +237,7 @@ func (e *Engine) onExpired(ev *api.Event) {
 func (e *Engine) onPickedUp(ev *api.Event) {
 	if g := e.gigs[ev.GigID]; g != nil {
 		e.driverAt(g.driver, ev.PlaceID, ev.At)
+		g.pickedAt = ev.At
 	}
 	if ob := e.orders[ev.OrderID]; ob != nil && ev.Leg < len(ob.legs) {
 		ob.legs[ev.Leg].pickedUp = true

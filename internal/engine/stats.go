@@ -27,8 +27,11 @@ type Stats struct {
 	PostFailures     int            `json:"postFailures"`
 	Reprices         int            `json:"reprices"`
 	Reposts          int            `json:"reposts"`
+	Chains           int            `json:"chains"`
+	ChainBookings    int            `json:"chainBookings"`
 	Duplicates       int            `json:"duplicates"`
 	Offers           int            `json:"offers"`
+	ChainOffers      int            `json:"chainOffers"`
 	OfferAnswers     map[string]int `json:"offerAnswers"`
 	Views            int            `json:"views"`
 	Bookings         int            `json:"bookings"`
@@ -51,6 +54,9 @@ func newStats() Stats {
 
 func (s *Stats) booked(g *gigBook, at int) {
 	s.Bookings++
+	if g.mode == modeChain {
+		s.ChainBookings++
+	}
 	s.BookedFeeCents += g.fee
 	s.BookedBaseCents += g.base
 	s.BookWaitMin += at - g.postedAt

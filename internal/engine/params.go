@@ -25,10 +25,25 @@ type Params struct {
 	CostGain        float64 `json:"costGain"`
 	CostMin         float64 `json:"costMin"`
 	CostMax         float64 `json:"costMax"`
+	// Fee model (shortage levels, feemodel.go): each gig's own expected booking fee
+	// instead of one multiple for all. CostByGig 1 prices a request on that fee plus
+	// CostSpread typical fees (the worth of scarce driver time) instead of CostMult.
+	// OpenByGig 1 opens a gig at OpenShare of its expected fee and holds at MidShare of
+	// it, instead of FeeStart and FeeMid.
+	CostByGig  int     `json:"costByGig"`
+	CostSpread float64 `json:"costSpread"`
+	OpenByGig  int     `json:"openByGig"`
+	OpenShare  float64 `json:"openShare"`
+	MidShare   float64 `json:"midShare"`
 	// FloorMult is the least price as a multiple of the typical fee (level 4+): the fee
 	// itself. A quote goes under CostMult only when the order is worth more than its
 	// margin, for the trust it builds.
 	FloorMult float64 `json:"floorMult"`
+	// SlowOptions is how many of a request's delivery options are quoted, counted from the
+	// slowest: 0 quotes every option that passes the checks, 1 only the slowest, 2 the two
+	// slowest. At equal price ratios a dealer always takes the fastest option quoted, and
+	// the fastest is the hardest to deliver on time.
+	SlowOptions int `json:"slowOptions"`
 	// SameDayPremium multiplies the same-day price: the riskiest option, and at equal
 	// prices the one dealers always take.
 	SameDayPremium float64 `json:"sameDayPremium"`
@@ -55,6 +70,12 @@ type Params struct {
 	// that also knows weekday, hour and delivery option (its risks are on a lower scale:
 	// use RiskMax near 0.2 and no Thursday/Friday factors with it).
 	RiskModel int `json:"riskModel"`
+	// CostToday and CostLater multiply the cost of an order by when its first car is ready:
+	// on the day of the request, or on a later day. A car ready later finds a driver fast
+	// and cheap (half within 30 minutes, at 0.85 of the typical fee) and is rarely late; a
+	// car ready today is slow, dearer (1.05) and late three times as often.
+	CostToday float64 `json:"costToday"`
+	CostLater float64 `json:"costLater"`
 	// CostLong and CostShort multiply the cost of an order on a long lane (300 km or more)
 	// and on a short one (under 60 km): long hauls carry most of the margin, short hops little.
 	CostLong  float64 `json:"costLong"`
@@ -158,11 +179,32 @@ type Params struct {
 	// BufferShare of the drive (at least BufferMin) before the deadline, so drivers plan to arrive early.
 	BufferShare float64 `json:"bufferShare"`
 	BufferMin   int     `json:"bufferMin"`
+	// Chains (level 3+, chains.go): Chains 1 puts two single-car orders in one gig when the
+	// second pickup is within ChainHopMin road minutes of the first delivery and both cars
+	// stay on time with at least ChainSlackMin minutes of room to start. The chain's fee is
+	// ChainFeeShare of the two typical fees. If no driver takes it within ChainTryMin
+	// minutes, the cars are posted again one by one.
+	Chains        int     `json:"chains"`
+	ChainHopMin   int     `json:"chainHopMin"`
+	ChainSlackMin int     `json:"chainSlackMin"`
+	ChainTryMin   int     `json:"chainTryMin"`
+	ChainFeeShare float64 `json:"chainFeeShare"`
+	// ChainOffers 1 sends a direct offer of an open gig to a driver who already holds one
+	// of our gigs that ends within ChainHopMin road minutes of its pickup, at a time that
+	// fits: for that driver the second car costs only the extra drive. The offer pays at
+	// least ChainOfferMult times the gig's base fee.
+	ChainOffers    int     `json:"chainOffers"`
+	ChainOfferMult float64 `json:"chainOfferMult"`
 	// Direct offers (level 3+). Offers 1 turns them on. A gig gets offers once it has been
 	// open OfferAfterMin minutes, or at once when fewer than OfferReach drivers live within
 	// the app's 30 km notification radius of its pickup. An offer pays at least OfferMult
 	// times the base fee. OfferMaxScore bounds the travel minutes of a driver worth asking.
-	Offers        int     `json:"offers"`
+	Offers int `json:"offers"`
+	// OfferViewers 1 sends offers only to drivers who opened the gig in the last
+	// OfferViewMin minutes: they use the app now, the gig interests them, and in the app
+	// they may hold out for a raise, which an offer does not let them do.
+	OfferViewers  int     `json:"offerViewers"`
+	OfferViewMin  int     `json:"offerViewMin"`
 	OfferAfterMin int     `json:"offerAfterMin"`
 	OfferReach    int     `json:"offerReach"`
 	OfferMult     float64 `json:"offerMult"`
@@ -186,10 +228,16 @@ func DefaultParams() Params {
 	return Params{
 		PriceMult:      1.30,
 		CostMult:       1.00,
+		CostByGig:      0,
+		CostSpread:     0.33,
+		OpenByGig:      0,
+		OpenShare:      0.83,
+		MidShare:       1.19,
 		CostGain:       2.0,
 		CostMin:        1.10,
 		CostMax:        1.70,
 		FloorMult:      1.10,
+		SlowOptions:    0,
 		SameDayPremium: 1.00,
 		MinMarginCents: 300,
 		MinMarginShare: 0.05,
@@ -200,6 +248,8 @@ func DefaultParams() Params {
 		TradeIns:       1,
 		RiskModel:      2,
 		FridayCost:     1,
+		CostToday:      1,
+		CostLater:      1,
 		CostLong:       1,
 		CostShort:      1,
 		RiskMax:        1,
@@ -248,7 +298,16 @@ func DefaultParams() Params {
 		LastLeadMin:    600,
 		BufferShare:    0.15,
 		BufferMin:      15,
+		Chains:         0,
+		ChainHopMin:    25,
+		ChainSlackMin:  180,
+		ChainTryMin:    90,
+		ChainFeeShare:  0.9,
+		ChainOffers:    0,
+		ChainOfferMult: 0.85,
 		Offers:         0,
+		OfferViewers:   0,
+		OfferViewMin:   120,
 		OfferAfterMin:  45,
 		OfferReach:     40,
 		OfferMult:      1.0,
@@ -284,6 +343,7 @@ func DefaultParamsFor(level int) Params {
 		p.TradeIns = 0
 		p.NoteHours = 1
 		p.DayRate = 0.015
+		p.Chains = 1
 		p.RiskThursday = 0.8
 		p.RiskFriday = 0.6
 	}

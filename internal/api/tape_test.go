@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 )
@@ -83,5 +84,22 @@ func TestRawJSONWrapsPlainText(t *testing.T) {
 	}
 	if rawJSON(nil) != nil {
 		t.Error("an empty body is stored as nothing")
+	}
+}
+
+func TestFeedMessageDecodes(t *testing.T) {
+	raw := []byte(`{"status":"running","now":4500,"endsAt":14280,"teams":[{"rank":1,"team":"a","name":"A","marginCents":120000,"revenueCents":400000,"marginShare":0.3,"wonOrders":40,"onTimeShare":0.975,"undeliveredShare":0,"ranked":true},{"rank":null,"team":"house-strong","name":"House","marginCents":90000,"revenueCents":300000,"marginShare":0.3,"wonOrders":30,"onTimeShare":0.9,"undeliveredShare":0,"ranked":true}]}`)
+	var feed FinalFeed
+	if err := json.Unmarshal(raw, &feed); err != nil {
+		t.Fatal(err)
+	}
+	if feed.Status != "running" || feed.Now != 4500 || len(feed.Teams) != 2 {
+		t.Fatalf("feed = %+v", feed)
+	}
+	if first := feed.Teams[0]; first.Rank == nil || *first.Rank != 1 || first.RevenueCents != 400000 || first.WonOrders != 40 {
+		t.Errorf("first team = %+v", first)
+	}
+	if feed.Teams[1].Rank != nil {
+		t.Error("a house team has no rank")
 	}
 }

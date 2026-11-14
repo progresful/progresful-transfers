@@ -54,6 +54,8 @@ type orderBook struct {
 	noteDeadline int
 	// narrowed: the note gives a site shorter hours than stated; the car is posted day by day.
 	narrowed bool
+	// noChain: the order was already tried in a chain; from now on it goes alone.
+	noChain bool
 	// trustCounted / trustLate: how the order entered its dealer's trust count.
 	trustCounted bool
 	trustLate    bool
@@ -84,18 +86,25 @@ type gigBook struct {
 	plan     []api.FeeStep // the full fee plan; at level 1 only its current step is in the app
 	shown    int           // the fee the app shows now, as far as the engine knows
 	base     int           // base fee: the typical fee of its cars
+	feeMult  float64       // expected booking fee as a multiple of base (fee model); 0: unknown
 	status   string
 	driver   string
 	fee      int // booked fee
 	postedAt int
 	mode     int // posting mode: buffered, tight or late
 	buffer   int // minutes the delivery window ends before the deadline (buffered mode)
+	// chainUntil is when a chain attempt (modeChain) ends and its cars go alone; chainLast
+	// is the last minute its first car can be collected with both cars still on time.
+	chainUntil int
+	chainLast  int
 	// dayLate marks a day-window gig (modeDay) whose day is after the deadline.
 	dayLate bool
 	// bookableUntil is the last minute a driver can still book the gig inside its windows.
 	// After it the gig is dead weight in the app and must be posted again. 0 for a late gig.
 	bookableUntil int
 	views         int
+	pickedAt      int            // minute the gig's latest car was collected (0: none yet)
+	viewers       map[string]int // driver id -> minute the driver last opened the gig
 	offers        map[string]int // driver id -> minute an open direct offer was sent
 	offerFee      int            // fee of the latest offers
 }

@@ -98,6 +98,9 @@ func (e *Engine) wantsOffers(g *gigBook) bool {
 	if ob == nil {
 		return false
 	}
+	if e.P.OfferViewers == 1 {
+		return len(g.viewers) > 0
+	}
 	if e.now-g.postedAt >= e.P.OfferAfterMin {
 		return true
 	}
@@ -116,7 +119,13 @@ func (g *gigBook) openOffers(now int) int {
 
 // offerRound sends direct offers for the gigs that want them, up to three open per gig.
 func (e *Engine) offerRound() {
-	if e.P.Offers != 1 || e.Level < levelNetwork || quietHours(e.now) {
+	if e.Level < levelNetwork || quietHours(e.now) {
+		return
+	}
+	if e.P.ChainOffers == 1 {
+		e.chainOfferRound()
+	}
+	if e.P.Offers != 1 {
 		return
 	}
 	for _, g := range e.openGigs() {
@@ -152,6 +161,9 @@ func (e *Engine) candidates(g *gigBook, fee, n int) []*driverBook {
 	delivery := deliveryOrder.order.Legs[last.Leg].Delivery.PlaceID
 	today := cal.DayOf(e.now)
 	var found []candidate
+	if e.P.OfferViewers == 1 {
+		return e.viewerCandidates(g, first.OrderID, fee, n)
+	}
 	for _, d := range e.drivers {
 		if e.offersLeft(d) <= 0 || d.offered[g.id] || d.declined[first.OrderID] >= fee {
 			continue
@@ -176,6 +188,138 @@ func (e *Engine) candidates(g *gigBook, fee, n int) []*driverBook {
 		if score <= e.P.OfferMaxScore {
 			found = append(found, candidate{d: d, score: score})
 		}
+	}
+	sort.Slice(found, func(i, j int) bool {
+		if found[i].score != found[j].score {
+			return found[i].score < found[j].score
+		}
+		return found[i].d.profile.ID < found[j].d.profile.ID
+	})
+	out := make([]*driverBook, 0, n)
+	for i := 0; i < len(found) && i < n; i++ {
+		out = append(out, found[i].d)
+	}
+	return out
+}
+
+// chainOfferRound offers each open gig to drivers who hold a gig of ours that ends near
+// its pickup at a fitting time.
+func (e *Engine) chainOfferRound() {
+	for _, g := range e.openGigs() {
+		if g.id == "" || len(g.legs) == 0 || g.bookableUntil <= e.now {
+			continue
+		}
+		room := maxOpenOffers - g.openOffers(e.now)
+		if room <= 0 {
+			continue
+		}
+		fee := max(feeAt(g.plan, e.now), feeOf(g.base, e.P.ChainOfferMult))
+		for _, d := range e.chainDrivers(g, fee, room) {
+			e.offer(g, d, fee)
+			e.stats.ChainOffers++
+		}
+	}
+}
+
+// arrivalOf estimates when the driver of a booked or working gig reaches its last
+// delivery: exactly once the last car is collected, else a window from the earliest to
+// the last possible start. ok is false when the gig has no car left to deliver.
+func (e *Engine) arrivalOf(h *gigBook) (place string, earliest, latest int, ok bool) {
+	if len(h.legs) == 0 {
+		return "", 0, 0, false
+	}
+	drive := 0
+	var first, last *api.Leg
+	for _, ref := range h.legs {
+		ob := e.orders[ref.orderID]
+		if ob == nil {
+			return "", 0, 0, false
+		}
+		leg := &ob.order.Legs[ref.leg]
+		if first == nil {
+			first = leg
+		}
+		last = leg
+		drive += e.driveMin(leg)
+	}
+	place = last.Delivery.PlaceID
+	if h.status == gigWorking && h.pickedAt > 0 && len(h.legs) == 1 {
+		at := h.pickedAt + drive
+		return place, at, at, true
+	}
+	earliest = earliestPickup(first, e.now) + drive
+	latest = max(earliest, e.lastPickupOfGig(h)+drive)
+	return place, earliest, latest, true
+}
+
+// chainDrivers lists drivers who hold a gig of ours ending near the pickup of gig g at a
+// time that lets them collect g's first car inside its window: the nearest first.
+func (e *Engine) chainDrivers(g *gigBook, fee, n int) []*driverBook {
+	first := g.post.Stops[0]
+	ob := e.orders[first.OrderID]
+	if ob == nil {
+		return nil
+	}
+	leg := &ob.order.Legs[first.Leg]
+	ready := earliestPickup(leg, max(e.now, ob.legs[first.Leg].notBefore))
+	var found []candidate
+	for _, h := range e.gigs {
+		if h == g || h.driver == "" || (h.status != gigBooked && h.status != gigWorking) {
+			continue
+		}
+		d := e.drivers[h.driver]
+		if d == nil || e.offersLeft(d) <= 0 || d.offered[g.id] || d.declined[first.OrderID] >= fee {
+			continue
+		}
+		if g.post.Audience.ManualLicence && d.profile.Licence != licenceManual {
+			continue
+		}
+		place, earliest, latest, ok := e.arrivalOf(h)
+		if !ok {
+			continue
+		}
+		hop := e.Map.Minutes(place, leg.Pickup.PlaceID)
+		if hop > e.P.ChainHopMin || earliest+hop > g.bookableUntil || latest+hop < ready {
+			continue
+		}
+		found = append(found, candidate{d: d, score: hop})
+	}
+	sort.Slice(found, func(i, j int) bool {
+		if found[i].score != found[j].score {
+			return found[i].score < found[j].score
+		}
+		return found[i].d.profile.ID < found[j].d.profile.ID
+	})
+	out := make([]*driverBook, 0, n)
+	seen := map[string]bool{}
+	for _, c := range found {
+		if len(out) >= n {
+			break
+		}
+		if !seen[c.d.profile.ID] {
+			seen[c.d.profile.ID] = true
+			out = append(out, c.d)
+		}
+	}
+	return out
+}
+
+// viewerCandidates are the drivers who opened the gig lately and have not booked it:
+// the most recent viewers first.
+func (e *Engine) viewerCandidates(g *gigBook, orderID string, fee, n int) []*driverBook {
+	var found []candidate
+	for id, at := range g.viewers {
+		d := e.drivers[id]
+		if d == nil || e.now-at > e.P.OfferViewMin || e.offersLeft(d) <= 0 || d.offered[g.id] || d.declined[orderID] >= fee {
+			continue
+		}
+		if g.post.Audience.ManualLicence && d.profile.Licence != licenceManual {
+			continue
+		}
+		if g.post.Audience.Experienced && (d.profile.Rating < experiencedRating || d.profile.CompletedGigs < experiencedGigs) {
+			continue
+		}
+		found = append(found, candidate{d: d, score: e.now - at})
 	}
 	sort.Slice(found, func(i, j int) bool {
 		if found[i].score != found[j].score {

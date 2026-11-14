@@ -196,6 +196,16 @@ func (e *Engine) laneCost(req *api.PriceRequest) float64 {
 	return 1
 }
 
+// readyCost is the factor on the cost of an order for when its first car is ready: today
+// or on a later day (after its note).
+func (e *Engine) readyCost(req *api.PriceRequest, ref api.DeliveryOption) float64 {
+	ready, _ := e.effective(req, ref)
+	if cal.DayOf(ready) > cal.DayOf(req.ArrivedAt) {
+		return e.P.CostLater
+	}
+	return e.P.CostToday
+}
+
 // dayCost is the weekday's factor on the cost of an order: Friday's drivers are dearer.
 func (e *Engine) dayCost() float64 {
 	if cal.DayOf(e.now) == fridayIndex && e.P.FridayCost > 0 {
@@ -318,6 +328,14 @@ func (e *Engine) pricesFor(req *api.PriceRequest) map[string]int {
 	if len(offered) == 0 {
 		return nil
 	}
+	if keep := e.P.SlowOptions; keep > 0 && len(offered) > keep {
+		// Options come fastest first: keep the slowest ones, and price on their risk alone.
+		offered = offered[len(offered)-keep:]
+		risk = 0
+		for _, opt := range offered {
+			risk = math.Max(risk, e.lateRisk(req, opt))
+		}
+	}
 	ratio := e.quoteRatio(req, offered[0], floor, risk)
 	if ratio <= 0 {
 		return nil
@@ -344,7 +362,11 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 		e.P.LaneWeight*laneShift(place, req.Legs[0].Delivery.PlaceID)
 	ratio := e.P.PriceMult
 	if e.P.Adaptive == 1 {
-		cost := float64(req.ReferenceFeeCents)*e.costMult()*e.dayCost()*e.laneCost(req) + risk*(e.P.RiskCost*list+e.P.TrustGuard*e.trustAtStake(d))
+		mult := e.costMult()
+		if e.P.CostByGig == 1 && e.Level >= levelRiskTrained {
+			mult = e.expectedFeeMult(&req.Legs[0], req.RespondBy, ref.Kind) + e.P.CostSpread
+		}
+		cost := float64(req.ReferenceFeeCents)*mult*e.dayCost()*e.laneCost(req)*e.readyCost(req, ref) + risk*(e.P.RiskCost*list+e.P.TrustGuard*e.trustAtStake(d))
 		var chance float64
 		ratio, chance = e.market.bestRatio(level, cost/list, e.trustWorth(d)/list, float64(floor)/list)
 		if chance < e.P.MinWinChance {
