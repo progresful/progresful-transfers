@@ -19,8 +19,8 @@ func TestDefaultsByLevel(t *testing.T) {
 		{4, 0.75, 0.02, 180, 1, 1, 1, 0.92, 0.85, 1},
 		{5, 0.75, 0.02, 180, 1, 1, 1, 0.92, 0.85, 1},
 		{6, 0.75, 0.02, 180, 1, 1, 1, 0.92, 0.85, 1},
-		{7, 0.80, 0.05, 0, 0, 1, 0, 1.22, 1.10, 0.35},
-		{8, 0.80, 0.05, 0, 0, 1, 0, 1.2, 1.10, 0.35},
+		{7, 0.80, 0.05, 0, 0, 1, 0, 1.1, 1.10, 0.15},
+		{8, 0.80, 0.05, 0, 0, 1, 0, 1.2, 1.10, 0.12},
 	}
 	for _, c := range cases {
 		p := DefaultParamsFor(c.level)
@@ -73,6 +73,25 @@ func TestLanePricingByLevel(t *testing.T) {
 		if p.LaneWeight != wantLane || p.DestRate != wantDest || p.RiskSlope != wantSlope {
 			t.Errorf("level %d: lane weight %.2f, destination rate %.3f, risk slope %.2f, want %.2f, %.3f, %.2f",
 				level, p.LaneWeight, p.DestRate, p.RiskSlope, wantLane, wantDest, wantSlope)
+		}
+	}
+}
+
+// Levels 7 and 8 price with the belief model of the market and select with the lane risk
+// model, whose calibrated chance carries the weekday itself; the levels below keep the
+// running-rate market model and have no risk model.
+func TestShortageModelsByLevel(t *testing.T) {
+	for level := 1; level <= 8; level++ {
+		p := DefaultParamsFor(level)
+		wantMarket, wantRisk := 0, 2
+		if level >= 7 {
+			wantMarket, wantRisk = marketModelBeliefs, riskModelLaneID
+		}
+		if p.MarketModel != wantMarket || p.RiskModel != wantRisk {
+			t.Errorf("level %d: market model %d, risk model %d, want %d and %d", level, p.MarketModel, p.RiskModel, wantMarket, wantRisk)
+		}
+		if p.RiskThursday != 1 || p.RiskFriday != 1 {
+			t.Errorf("level %d: Thursday and Friday factors %.2f / %.2f, want 1 / 1", level, p.RiskThursday, p.RiskFriday)
 		}
 	}
 }

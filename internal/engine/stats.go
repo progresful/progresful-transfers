@@ -85,7 +85,7 @@ func (e *Engine) Stats() map[string]any {
 		return out
 	}
 	_ = json.Unmarshal(raw, &out)
-	out["marketRatio"] = math.Round(1000*math.Exp(e.market.mu)) / 1000
+	out["marketRatio"] = math.Round(1000*e.market.worldRatio()) / 1000
 	trusted := 0
 	for _, d := range e.market.dealers {
 		trusted += d.trust

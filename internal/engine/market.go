@@ -21,6 +21,8 @@ const (
 	requestDayStart = 8 * cal.Hour
 	requestDayEnd   = 18 * cal.Hour
 	requestDays     = 5
+	// marketModelBeliefs selects the belief model of the price level (beliefs.go).
+	marketModelBeliefs = 2
 )
 
 // dealerBook is what the engine has learned about one dealer.
@@ -62,6 +64,9 @@ type market struct {
 	// that is new in each world. destRate is how fast it learns (0: off).
 	dest     map[string]*destBook
 	destRate float64
+	// beliefs is the belief model of the level (Params.MarketModel 2); nil keeps the
+	// running rates above.
+	beliefs *beliefBook
 }
 
 // destBook is what the week's quotes have shown about one delivery place.
@@ -99,7 +104,12 @@ func (m *market) learnDest(place string, surprise float64) {
 }
 
 func newMarket(p Params, level int) *market {
+	var beliefs *beliefBook
+	if p.MarketModel == marketModelBeliefs {
+		beliefs = newBeliefBook(p)
+	}
 	return &market{
+		beliefs:  beliefs,
 		mu:       math.Log(p.MarketStart),
 		scale:    p.MarketScale,
 		rate:     p.MarketRate,
@@ -125,11 +135,32 @@ func (m *market) dealer(id string) *dealerBook {
 
 // level is the log ratio at which a quote to this dealer wins half the time.
 func (m *market) level(d *dealerBook, trustBoost float64) float64 {
-	lvl := m.mu + d.offset
-	if m.trustOn {
-		lvl += trustBoost * math.Log(1+trustStep*float64(d.trust))
+	return m.mu + d.offset + m.trustShift(d, trustBoost)
+}
+
+// trustShift is how much a dealer's trust raises the prices it accepts (log ratio).
+func (m *market) trustShift(d *dealerBook, trustBoost float64) float64 {
+	if !m.trustOn {
+		return 0
 	}
-	return lvl
+	return trustBoost * math.Log(1+trustStep*float64(d.trust))
+}
+
+// worldRatio is the ratio at which a quote wins half the time on an average lane and day.
+func (m *market) worldRatio() float64 {
+	if m.beliefs != nil {
+		return math.Exp(m.beliefs.world.M)
+	}
+	return math.Exp(m.mu)
+}
+
+// count keeps a dealer's quotes and wins.
+func (m *market) count(d *dealerBook, won bool) {
+	m.seen++
+	d.quotes++
+	if won {
+		d.wins++
+	}
 }
 
 // rollDay forgets yesterday's fast part when a new day starts.
@@ -166,7 +197,12 @@ func sigmoid(x float64) float64 { return 1 / (1 + math.Exp(-x)) }
 
 // winProb is the estimated chance that a quote at the ratio wins against the level.
 func (m *market) winProb(level, ratio float64) float64 {
-	return sigmoid((level - math.Log(ratio)) / m.scale)
+	return winChance(level, ratio, m.scale)
+}
+
+// winChance is the chance that a quote at the ratio wins against a level known to the width.
+func winChance(level, ratio, width float64) float64 {
+	return sigmoid((level - math.Log(ratio)) / width)
 }
 
 // learn moves the world level and the dealer's offset towards what a quote's outcome shows,
@@ -178,11 +214,7 @@ func (m *market) learn(d *dealerBook, level, ratio float64, won bool) float64 {
 		y = 1
 	}
 	surprise := y - m.winProb(level, ratio)
-	m.seen++
-	d.quotes++
-	if won {
-		d.wins++
-	}
+	m.count(d, won)
 	m.mu += surprise * math.Max(m.rate, 4*m.rate/math.Sqrt(float64(m.seen)))
 	d.offset += surprise * math.Max(m.dRate, 2*m.dRate/math.Sqrt(float64(d.quotes)))
 	return surprise
@@ -192,18 +224,23 @@ func (m *market) learn(d *dealerBook, level, ratio float64, won bool) float64 {
 // cost is costRatio (cost over list price) and which is worth bonusRatio more when won.
 // It never goes under floorRatio. The second result is the chance to win at that ratio.
 func (m *market) bestRatio(level, costRatio, bonusRatio, floorRatio float64) (float64, float64) {
-	lo, hi := math.Exp(level-4*m.scale), math.Exp(level+3*m.scale)
+	return bestRatioAt(level, m.scale, costRatio, bonusRatio, floorRatio)
+}
+
+// bestRatioAt is bestRatio for a win curve of the given width around the level.
+func bestRatioAt(level, width, costRatio, bonusRatio, floorRatio float64) (float64, float64) {
+	lo, hi := math.Exp(level-4*width), math.Exp(level+3*width)
 	best, bestGain := math.Max(floorRatio, hi), math.Inf(-1)
 	for k := 0; k <= ratioGrid; k++ {
 		r := lo + (hi-lo)*float64(k)/ratioGrid
 		if r < floorRatio {
 			continue
 		}
-		if gain := (r - costRatio + bonusRatio) * m.winProb(level, r); gain > bestGain {
+		if gain := (r - costRatio + bonusRatio) * winChance(level, r, width); gain > bestGain {
 			best, bestGain = r, gain
 		}
 	}
-	return best, m.winProb(level, best)
+	return best, winChance(level, best, width)
 }
 
 // requestTimeLeft is the share of the week's request hours (Mon-Fri 08:00-18:00) still to come.

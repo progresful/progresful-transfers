@@ -33,6 +33,26 @@ func (p Params) discoveryMult(sincePost int) float64 {
 	return math.Min(p.FeeMid, p.FeeStart+p.FeeStep*float64(sincePost/p.StepMin))
 }
 
+// discoveryEnd is how long after the post the discovery clock reaches FeeMid.
+func (p Params) discoveryEnd() int {
+	if p.StepMin <= 0 || p.FeeStep <= 0 || p.FeeMid <= p.FeeStart {
+		return 0
+	}
+	return int(math.Ceil((p.FeeMid-p.FeeStart)/p.FeeStep-1e-9)) * p.StepMin
+}
+
+// holdMult is the slow rise between the discovery clock and the deadline pressure: from
+// FeeMid when the clock stops to HoldMax when the pressure starts. Zero when switched
+// off, before the clock stops, or when the pressure starts before it does.
+func (p Params) holdMult(sincePost, untilLast int) float64 {
+	start := p.discoveryEnd()
+	span := sincePost + untilLast - p.LeadMin - start
+	if p.HoldMax <= p.FeeMid || sincePost < start || span <= 0 {
+		return 0
+	}
+	return lerp(p.FeeMid, p.HoldMax, float64(sincePost-start)/float64(span))
+}
+
 // urgencyMult is the pressure of the deadline: nothing until LeadMin before the last
 // on-time pickup, then from FeeMid up to FeeMax at FinalMin before it.
 func (p Params) urgencyMult(untilLast int) float64 {
@@ -59,6 +79,11 @@ func (p Params) Schedule(now, lastPickup, base int) []api.FeeStep {
 			times = append(times, onGrid(now+k*p.StepMin))
 		}
 	}
+	if hold, lead := now+p.discoveryEnd(), lastPickup-p.LeadMin; p.HoldMax > p.FeeMid && lead > hold {
+		for k := 1; k <= p.HoldSteps; k++ {
+			times = append(times, onGrid(hold+(lead-hold)*k/p.HoldSteps))
+		}
+	}
 	for k := 0; k <= p.UrgentSteps; k++ {
 		t := lastPickup - p.LeadMin + (p.LeadMin-p.FinalMin)*k/max(1, p.UrgentSteps)
 		times = append(times, onGrid(t))
@@ -69,7 +94,7 @@ func (p Params) Schedule(now, lastPickup, base int) []api.FeeStep {
 		if t < now || t > final+stepGridMin {
 			continue
 		}
-		mult := math.Max(p.discoveryMult(t-now), p.urgencyMult(lastPickup-t))
+		mult := math.Max(math.Max(p.discoveryMult(t-now), p.holdMult(t-now, lastPickup-t)), p.urgencyMult(lastPickup-t))
 		steps = appendStep(steps, t, feeOf(base, mult))
 	}
 	return steps

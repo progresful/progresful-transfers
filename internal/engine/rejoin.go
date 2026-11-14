@@ -158,6 +158,17 @@ type savedState struct {
 	Dealers map[string]savedDealer  `json:"dealers"`
 	Quotes  map[string]pendingQuote `json:"quotes"`
 	Dest    map[string]savedDest    `json:"dest,omitempty"`
+	Beliefs *savedBeliefs           `json:"beliefs,omitempty"`
+}
+
+// savedBeliefs is the belief model's state (Params.MarketModel 2).
+type savedBeliefs struct {
+	World      belief             `json:"world"`
+	Day        belief             `json:"day"`
+	DayIndex   int                `json:"dayIndex"`
+	Dealers    map[string]*belief `json:"dealers"`
+	Pickups    map[string]*belief `json:"pickups"`
+	Deliveries map[string]*belief `json:"deliveries"`
 }
 
 type savedDest struct {
@@ -182,6 +193,9 @@ func (e *Engine) SaveState(path string) error {
 		for place, b := range e.market.dest {
 			state.Dest[place] = savedDest{Offset: b.offset, Quotes: b.quotes}
 		}
+	}
+	if b := e.market.beliefs; b != nil {
+		state.Beliefs = &savedBeliefs{World: b.world, Day: b.day, DayIndex: b.dayIndex, Dealers: b.dealers, Pickups: b.pickups, Deliveries: b.deliveries}
 	}
 	data, err := json.Marshal(state)
 	if err != nil {
@@ -220,6 +234,14 @@ func (e *Engine) LoadState(path string) error {
 	}
 	for place, sd := range state.Dest {
 		e.market.dest[place] = &destBook{offset: sd.Offset, quotes: sd.Quotes}
+	}
+	if b, saved := e.market.beliefs, state.Beliefs; b != nil && saved != nil {
+		b.world, b.day, b.dayIndex = saved.World, saved.Day, saved.DayIndex
+		for group, from := range map[*map[string]*belief]map[string]*belief{&b.dealers: saved.Dealers, &b.pickups: saved.Pickups, &b.deliveries: saved.Deliveries} {
+			if from != nil {
+				*group = from
+			}
+		}
 	}
 	return nil
 }

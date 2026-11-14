@@ -316,6 +316,9 @@ func (e *Engine) reprice(g *gigBook) {
 func (e *Engine) planFor(g *gigBook, lastPickup int) []api.FeeStep {
 	p := e.P
 	p.FeeMax *= e.feeBoost(g)
+	if p.LeadDrive > 0 {
+		p.LeadMin += int(p.LeadDrive * float64(e.gigDrive(g)))
+	}
 	if p.OpenByGig == 1 && g.feeMult > 0 {
 		// The gig opens near the fee it is expected to book at, and holds a little above it.
 		p.FeeStart, p.FeeMid = g.feeMult*p.OpenShare, g.feeMult*p.MidShare
@@ -346,6 +349,17 @@ func (e *Engine) planFor(g *gigBook, lastPickup int) []api.FeeStep {
 	}
 	g.bookableUntil = 0
 	return capSchedule(p.lateSchedule(e.now, g.base, e.endsAt, e.lastFee(g)), lateCap)
+}
+
+// gigDrive is the road minutes a gig's cars are driven.
+func (e *Engine) gigDrive(g *gigBook) int {
+	drive := 0
+	for _, ref := range g.legs {
+		if ob := e.orders[ref.orderID]; ob != nil && ref.leg < len(ob.order.Legs) {
+			drive += e.driveMin(&ob.order.Legs[ref.leg])
+		}
+	}
+	return drive
 }
 
 // priceOf is the price of the orders a gig carries.

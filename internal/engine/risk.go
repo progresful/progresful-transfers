@@ -57,8 +57,13 @@ var (
 	}
 )
 
-// riskModelTimedID selects the model with weekday, hour and option features.
-const riskModelTimedID = 3
+const (
+	// riskModelTimedID selects the model with weekday, hour and option features.
+	riskModelTimedID = 3
+	// riskModelLaneID selects the model that also knows the lane, the lead and the day's
+	// load (risklane.go).
+	riskModelLaneID = 4
+)
 
 func (e *Engine) riskModel() *riskCoefficients {
 	if e.P.RiskModel == riskModelTimedID {
@@ -181,6 +186,10 @@ func (e *Engine) lateRisk(req *api.PriceRequest, opt api.DeliveryOption) float64
 		leg, from, by := &req.Legs[i], req.RespondBy, opt.Deadline
 		if i == 0 {
 			leg, from, by = e.realLeg(req), ready, deadline
+		}
+		if e.P.RiskModel == riskModelLaneID {
+			worst = math.Max(worst, e.laneRisk(leg, req.RespondBy, from, by, opt.Kind, req.ReferenceFeeCents, req.Options[0].ListPriceCents))
+			continue
 		}
 		worst = math.Max(worst, e.legRisk(leg, from, by, opt.Kind))
 	}

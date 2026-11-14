@@ -375,14 +375,13 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 	list := float64(ref.ListPriceCents)
 	d := e.market.dealer(req.DealerID)
 	place, dest, day := req.Legs[0].Pickup.PlaceID, req.Legs[0].Delivery.PlaceID, cal.DayOf(e.now)
-	level := e.market.level(d, e.P.TrustBoost) + e.market.todayShift(req.DealerID, place, day) +
-		e.P.LaneWeight*laneShift(place, dest) + e.market.destShift(dest)
+	level, width := e.priceLevel(req, d, day)
 	ratio := e.P.PriceMult
 	if e.P.Adaptive == 1 {
 		mult := e.costMultFor(req, ref) + e.P.RiskSlope*risk
 		cost := float64(req.ReferenceFeeCents)*mult*e.dayCost()*e.laneCost(req)*e.readyCost(req, ref) + risk*(e.P.RiskCost*list+e.P.TrustGuard*e.trustAtStake(d))
 		var chance float64
-		ratio, chance = e.market.bestRatio(level, cost/list, e.trustWorth(d)/list, float64(floor)/list)
+		ratio, chance = bestRatioAt(level, width, cost/list, e.trustWorth(d)/list, float64(floor)/list)
 		if chance < e.P.MinWinChance {
 			return 0 // the price that pays is far above what this dealer accepts
 		}
@@ -392,6 +391,19 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 	}
 	e.quotes[req.ID] = pendingQuote{Dealer: req.DealerID, Place: place, Dest: dest, Day: day, Level: level, Ratio: math.Max(ratio, float64(floor)/list)}
 	return ratio
+}
+
+// priceLevel is the log ratio at which a quote for the request wins half the time, and
+// the width of the win curve around it.
+func (e *Engine) priceLevel(req *api.PriceRequest, d *dealerBook, day int) (float64, float64) {
+	place, dest := req.Legs[0].Pickup.PlaceID, req.Legs[0].Delivery.PlaceID
+	if b := e.market.beliefs; b != nil {
+		level, width := b.level(req.DealerID, place, dest, day)
+		return level + e.market.trustShift(d, e.P.TrustBoost), width
+	}
+	level := e.market.level(d, e.P.TrustBoost) + e.market.todayShift(req.DealerID, place, day) +
+		e.P.LaneWeight*laneShift(place, dest) + e.market.destShift(dest)
+	return level, e.market.scale
 }
 
 // costMultFor is the cost of carrying a request as a multiple of its typical fee: the
@@ -457,6 +469,11 @@ func (e *Engine) onQuoteAnswer(requestID string, won bool) {
 		return
 	}
 	delete(e.quotes, requestID)
+	if b := e.market.beliefs; b != nil {
+		e.market.count(e.market.dealer(q.Dealer), won)
+		b.learn(q, won)
+		return
+	}
 	surprise := e.market.learn(e.market.dealer(q.Dealer), q.Level, q.Ratio, won)
 	e.market.learnToday(q.Dealer, q.Place, q.Day, surprise)
 	e.market.learnDest(q.Dest, surprise)

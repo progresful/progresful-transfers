@@ -129,6 +129,18 @@ type Params struct {
 	MarketScale float64 `json:"marketScale"`
 	MarketRate  float64 `json:"marketRate"`
 	DealerRate  float64 `json:"dealerRate"`
+	// MarketModel 2 replaces the running rates by Gaussian beliefs about each part of the
+	// price level (beliefs.go): the world, the day, the dealer and each end of the lane.
+	// BeliefScale is the width of a dealer's own choice; BeliefWorld, BeliefDay,
+	// BeliefDealer and BeliefPlace are the prior deviations of the parts (log ratio);
+	// BeliefDrift is the deviation a dealer's and a place's part gain each morning.
+	MarketModel  int     `json:"marketModel"`
+	BeliefScale  float64 `json:"beliefScale"`
+	BeliefWorld  float64 `json:"beliefWorld"`
+	BeliefDay    float64 `json:"beliefDay"`
+	BeliefDealer float64 `json:"beliefDealer"`
+	BeliefPlace  float64 `json:"beliefPlace"`
+	BeliefDrift  float64 `json:"beliefDrift"`
 	// DayRate is how fast the market level follows the current day alone (per dealer and
 	// region too): the competitor's day factor, the price war and the outage. 0 turns it off.
 	DayRate float64 `json:"dayRate"`
@@ -175,6 +187,16 @@ type Params struct {
 	LeadMin     int     `json:"leadMin"`
 	FinalMin    int     `json:"finalMin"`
 	UrgentSteps int     `json:"urgentSteps"`
+	// HoldMax above FeeMid lets the fee keep rising between the discovery clock and the
+	// deadline pressure: from FeeMid when the clock stops to HoldMax when the pressure
+	// starts, in HoldSteps steps. A gig that found no driver at FeeMid needs more than
+	// FeeMid, and most drivers book the day before they drive. 0 keeps the fee at FeeMid.
+	HoldMax   float64 `json:"holdMax"`
+	HoldSteps int     `json:"holdSteps"`
+	// LeadDrive starts the deadline pressure earlier for a long gig: LeadMin plus this
+	// multiple of the gig's road minutes before the last on-time pickup. A driver for a
+	// long lane has a long way to the car too.
+	LeadDrive float64 `json:"leadDrive"`
 	// Late cars (no on-time pickup left): fee from LateStart to LateMax over LateRampMin.
 	LateStart   float64 `json:"lateStart"`
 	LateMax     float64 `json:"lateMax"`
@@ -298,6 +320,13 @@ func DefaultParams() Params {
 		LoosenCost:     0,
 		DeclineMult:    4.0,
 		MarketStart:    0,
+		MarketModel:    0,
+		BeliefScale:    0.07,
+		BeliefWorld:    0.08,
+		BeliefDay:      0.07,
+		BeliefDealer:   0.04,
+		BeliefPlace:    0.04,
+		BeliefDrift:    0.02,
 		MarketScale:    0.07,
 		MarketRate:     0.01,
 		DealerRate:     0.01,
@@ -319,6 +348,9 @@ func DefaultParams() Params {
 		FeeMid:         1.00,
 		FeeMax:         2.00,
 		LeadMin:        240,
+		HoldMax:        0,
+		HoldSteps:      6,
+		LeadDrive:      0,
 		FinalMin:       45,
 		UrgentSteps:    6,
 		LateStart:      1.00,
@@ -407,23 +439,32 @@ func DefaultParamsFor(level int) Params {
 		p.Chains = 1
 		p.RiskThursday = 0.8
 		p.RiskFriday = 0.6
+		// The belief model of the market and the lane risk model (e15). The lane model
+		// knows which orders arrive late in a shortage: long hauls won with little time,
+		// same-day cars on a Friday or late in a busy day, hops too short to pay a
+		// driver's trip. With it the engine wins a third more orders and is as often on
+		// time. Its output is a calibrated chance: the cap is lower, and the Thursday
+		// and Friday factors are in the model.
+		p.MarketModel = marketModelBeliefs
+		p.RiskModel = riskModelLaneID
+		p.RiskThursday, p.RiskFriday = 1, 1
 		if level > paramsShortageLevel {
-			// Level 8, judged on 24 worlds (the 8 bench weeks and 16 fresh ones): each lane
-			// is priced against its own level (fixed lane effects plus a shift learned per
-			// delivery place during the week), and the cost of an order rises with its
-			// lateness risk from a lower base. +317 a week on average and safer: on time
-			// 95.6 % -> 96.4 %, worst week 90.3 % -> 92.7 %. The three hardest worlds gain
-			// about 3,000 each and two points on time.
+			// Level 8, judged on 24 worlds (the 8 bench weeks and 16 fresh ones): 16,127 a
+			// week against 14,006 for e14, 96.9 % on time, worst week 94.1 % (e14: 92.7 %).
+			// Caps of 0.16 and 0.2 earn the same within noise and are less safe. LaneWeight
+			// and DestRate belong to the running-rate market model and no longer act.
 			p.LaneWeight = 1
 			p.DestRate = 0.02
 			p.CostMult = 1.2
 			p.RiskSlope = 1
+			p.RiskMax = 0.12
 		}
 		if level == paramsShortageLevel {
-			// Level 7's competitor is only 12-38 % above the list price: the scarcity cost
-			// of level 8 prices us out of orders that drivers could still move. 1.15 earns
-			// the same within noise but its worst bench week is 93.8 % on time against 96.2 %.
-			p.CostMult = 1.22
+			// Level 7's competitor is only 12-38 % above the list price: with the lane model
+			// keeping the risky orders out, a cost of 1.1 wins 377 orders a week instead of
+			// 268 at 96.9 % on time (bench: 8,808 against 7,902). 1.0 wins 449 and is late.
+			p.CostMult = 1.1
+			p.RiskMax = 0.15
 		}
 	}
 	return p

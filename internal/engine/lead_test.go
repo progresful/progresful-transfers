@@ -49,3 +49,41 @@ func TestShortLeadIsDeclined(t *testing.T) {
 		t.Errorf("want a declining quote, got %+v", sent)
 	}
 }
+
+// With HoldMax the fee keeps rising after the discovery clock, up to HoldMax when the
+// deadline pressure starts; without it the plan is what it was.
+func TestHoldRampRisesBetweenDiscoveryAndPressure(t *testing.T) {
+	p := DefaultParamsFor(8)
+	now, last, base := 600, 600+30*60, 10000
+	plain := p.Schedule(now, last, base)
+	p.HoldMax = 1.5
+	held := p.Schedule(now, last, base)
+	leadStart := last - p.LeadMin
+	if got, want := feeAt(plain, leadStart-5), feeOf(base, p.FeeMid); got != want {
+		t.Fatalf("without the ramp the fee before the pressure is %d, want %d", got, want)
+	}
+	if got, want := feeAt(held, leadStart), feeOf(base, 1.5); got < want-100 || got > want {
+		t.Errorf("with the ramp the fee at the start of the pressure is %d, want about %d", got, want)
+	}
+	mid := now + p.discoveryEnd() + (leadStart-now-p.discoveryEnd())/2
+	if got := feeAt(held, mid); got <= feeOf(base, p.FeeMid) || got >= feeOf(base, 1.5) {
+		t.Errorf("halfway the fee is %d, want between %d and %d", got, feeOf(base, p.FeeMid), feeOf(base, 1.5))
+	}
+	for i := 1; i < len(held); i++ {
+		if held[i].FeeCents <= held[i-1].FeeCents || held[i].At <= held[i-1].At {
+			t.Fatalf("step %d does not rise: %+v after %+v", i, held[i], held[i-1])
+		}
+	}
+	if got, want := feeAt(held, now), feeAt(plain, now); got != want {
+		t.Errorf("the opening fee changed: %d, want %d", got, want)
+	}
+	if got, want := held[len(held)-1].FeeCents, plain[len(plain)-1].FeeCents; got != want {
+		t.Errorf("the top fee changed: %d, want %d", got, want)
+	}
+	// A gig posted inside the pressure window has no room for the ramp.
+	short := p.Schedule(now, now+p.LeadMin-30, base)
+	p.HoldMax = 0
+	if want := p.Schedule(now, now+p.LeadMin-30, base); !sameSchedule(short, want) {
+		t.Errorf("a gig posted inside the pressure window should keep its plan: %+v vs %+v", short, want)
+	}
+}
