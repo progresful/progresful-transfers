@@ -4,9 +4,8 @@ package engine
 // alter what the engine decides (not for refactors), together with VersionNote. Every
 // run records both, so a result can always be traced to the logic that produced it.
 const (
-	Version     = "e9"
-	VersionNote = "e8 + chains: two single-car orders go in one gig when the second pickup is within 25 road minutes of the first " +
-		"delivery and both stay on time; a 90-minute attempt at 0.9 of the two typical fees, then the cars go alone"
+	Version     = "e10"
+	VersionNote = "e9 with chains over a longer hop: the second pickup may be up to 70 road minutes from the first delivery (was 25)"
 )
 
 // SourceHash identifies the exact source the binary was built from. scripts/build.sh

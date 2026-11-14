@@ -299,7 +299,7 @@ func DefaultParams() Params {
 		BufferShare:    0.15,
 		BufferMin:      15,
 		Chains:         0,
-		ChainHopMin:    25,
+		ChainHopMin:    70,
 		ChainSlackMin:  180,
 		ChainTryMin:    90,
 		ChainFeeShare:  0.9,
