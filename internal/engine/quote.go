@@ -276,7 +276,12 @@ type pendingQuote struct {
 	Ratio  float64 `json:"ratio"`           // quoted price over list price
 	Width  float64 `json:"width,omitempty"` // width of the win curve the quote was priced against
 	Fast   string  `json:"fast,omitempty"`  // the fastest option quoted, when several were
-	At     int     `json:"at,omitempty"`    // minute the quote was made
+	// Prices are the prices sent, By the request's deadline, Again whether the quote was
+	// looked at again before it (requote.go).
+	Prices map[string]int `json:"prices,omitempty"`
+	By     int            `json:"by,omitempty"`
+	Again  bool           `json:"again,omitempty"`
+	At     int            `json:"at,omitempty"` // minute the quote was made
 }
 
 // marketStartFor is the first guess of the winning ratio at a level: the middle of the
@@ -325,6 +330,10 @@ func (e *Engine) onRequest(req *api.PriceRequest) {
 		prices = map[string]int{first.Kind: int(float64(first.ListPriceCents) * e.P.DeclineMult)}
 	} else {
 		e.stats.Quoted++
+		if q, ok := e.quotes[req.ID]; ok {
+			q.Prices, q.By = prices, req.RespondBy
+			e.quotes[req.ID] = q
+		}
 	}
 	e.send(api.Action{Type: api.ActQuote, RequestID: req.ID, Prices: prices}, nil)
 }
@@ -454,7 +463,7 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 	e.whyLvl = level
 	ratio := e.P.PriceMult
 	if e.P.Adaptive == 1 {
-		mult := e.costMultFor(req, ref) + e.P.RiskSlope*risk
+		mult := e.costMultFor(req, ref)*e.dealerCost(req, d) + e.P.RiskSlope*risk
 		cost := float64(req.ReferenceFeeCents)*mult*e.dayCost()*e.laneCost(req)*e.readyCost(req, ref) + risk*(e.P.RiskCost*list+e.P.TrustGuard*e.trustAtStake(d))
 		var chance float64
 		worth := e.trustWorthFor(d, risk) / list
@@ -471,6 +480,9 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 	}
 	if d.requests >= shareMinRequests && float64(d.wins) > e.P.ShareCap*float64(d.requests) {
 		ratio *= 1 + e.P.ShareMarkup
+	}
+	if e.P.FridayMarkup > 1 && cal.DayOf(e.now) == fridayIndex {
+		ratio *= e.P.FridayMarkup
 	}
 	e.quotes[req.ID] = pendingQuote{Dealer: req.DealerID, Place: place, Dest: dest, Day: day, Level: level, Ratio: math.Max(ratio, float64(floor)/list), Width: width, At: e.now}
 	return ratio

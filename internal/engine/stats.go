@@ -16,6 +16,7 @@ type Stats struct {
 	Declined         int            `json:"declined"`
 	DeclinedSupply   int            `json:"declinedSupply"`
 	RiskyOptions     int            `json:"riskyOptions"`
+	Requotes         int            `json:"requotes"` // quotes sent again before their deadline
 	DeclinedNote     map[string]int `json:"declinedNote"`
 	Won              int            `json:"won"`
 	Lost             int            `json:"lost"`
@@ -136,4 +137,24 @@ func (e *Engine) OrderReport() []OrderLine {
 		})
 	}
 	return lines
+}
+
+// declineCounts are the counters that pricing a request moves; a request that is priced
+// a second time (requote.go) must not count twice.
+type declineCounts struct {
+	supply, risky, prospects int
+	notes                    map[string]int
+}
+
+func (s *Stats) snapshotDeclines() declineCounts {
+	c := declineCounts{supply: s.DeclinedSupply, risky: s.RiskyOptions, prospects: s.ChainProspects, notes: make(map[string]int, len(s.DeclinedNote))}
+	for k, v := range s.DeclinedNote {
+		c.notes[k] = v
+	}
+	return c
+}
+
+func (s *Stats) restoreDeclines(c declineCounts) {
+	s.DeclinedSupply, s.RiskyOptions, s.ChainProspects = c.supply, c.risky, c.prospects
+	s.DeclinedNote = c.notes
 }

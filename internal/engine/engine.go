@@ -277,7 +277,7 @@ func (e *Engine) NextWake() int {
 			}
 		}
 	}
-	return min(wake, e.nextOfferWake())
+	return min(wake, e.nextOfferWake(), e.nextRequoteWake())
 }
 
 // review looks at every open gig: one that drivers can no longer book inside its windows
@@ -293,6 +293,7 @@ func (e *Engine) review() {
 	}
 	e.offerRound()
 	e.adoptOrphans()
+	e.requoteRound()
 }
 
 // adoptOrphans posts every car that has no gig although it still must move: one whose

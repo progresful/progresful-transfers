@@ -195,6 +195,24 @@ type Params struct {
 	// pickup and the last one that still arrives that day.
 	TrustRush    float64 `json:"trustRush"`
 	TrustRushMin int     `json:"trustRushMin"`
+	// Cost by dealer (dealercost.go). LeadCost is the factor on the cost of a short car
+	// that can arrive today, for a dealer that sends at least LeadShare of all requests and
+	// whose trust can still grow: its on-time deliveries today are the trust its many later
+	// orders are sold on (0 or 1: off). LeadMaxDrive is the longest drive in minutes it applies
+	// to. MinorCost is the factor on the cost of every request of a dealer that sends less
+	// than MinorShare of all requests (0 or 1: off).
+	LeadCost     float64 `json:"leadCost"`
+	LeadShare    float64 `json:"leadShare"`
+	LeadMaxDrive int     `json:"leadMaxDrive"`
+	MinorCost    float64 `json:"minorCost"`
+	MinorShare   float64 `json:"minorShare"`
+	// RequoteLead (requote.go): this many minutes before a request's deadline its quote is
+	// priced again, and sent again when the first option's price has moved by RequoteMin
+	// or more of itself (0: off). A new quote replaces the old one until the deadline.
+	RequoteLead int     `json:"requoteLead"`
+	RequoteMin  float64 `json:"requoteMin"`
+	// FridayMarkup multiplies every quote made on a Friday (0 or 1: off).
+	FridayMarkup float64 `json:"fridayMarkup"`
 	// ShareCap and ShareMarkup: the competitor cuts its prices for a dealer whose requests
 	// we mostly win. Above ShareCap of a dealer's requests won, quotes to it go up by
 	// ShareMarkup, to stay under the competitor's radar. ShareCap 1 turns it off.
@@ -419,6 +437,10 @@ func DefaultParams() Params {
 		BufferShare:    0.15,
 		OutagePrior:    0.05,
 		TrustRushMin:   120,
+		LeadShare:      0.2,
+		RequoteMin:     0.02,
+		LeadMaxDrive:   180,
+		MinorShare:     0.07,
 		BufferMin:      15,
 		Chains:         0,
 		ChainTries:     1,
