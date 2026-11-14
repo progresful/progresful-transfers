@@ -275,6 +275,7 @@ type pendingQuote struct {
 	Level  float64 `json:"level"`           // the market level the quote was priced against
 	Ratio  float64 `json:"ratio"`           // quoted price over list price
 	Width  float64 `json:"width,omitempty"` // width of the win curve the quote was priced against
+	Fast   string  `json:"fast,omitempty"`  // the fastest option quoted, when several were
 	At     int     `json:"at,omitempty"`    // minute the quote was made
 }
 
@@ -403,14 +404,38 @@ func (e *Engine) pricesFor(req *api.PriceRequest) map[string]int {
 		return nil
 	}
 	prices := make(map[string]int, len(offered))
-	for _, opt := range offered {
+	speed := e.speedPremium(req.DealerID, len(offered))
+	for i, opt := range offered {
 		r := ratio
 		if opt.Kind == api.SameDay {
 			r *= e.P.SameDayPremium
 		}
+		if i == 0 {
+			r *= speed // options come fastest first
+		}
 		prices[opt.Kind] = max(floor, int(math.Round(float64(opt.ListPriceCents)*r)))
 	}
+	if len(offered) > 1 {
+		if q, ok := e.quotes[req.ID]; ok {
+			q.Fast = offered[0].Kind
+			e.quotes[req.ID] = q
+		}
+	}
 	return prices
+}
+
+// speedPremium is the factor on the fastest of several options for a dealer that has
+// taken the fastest nearly every time so far: speed is worth more to it than the list
+// price says. A dealer led by the price pays none, and one option is no choice.
+func (e *Engine) speedPremium(dealerID string, options int) float64 {
+	if e.P.SpeedPremium <= 1 || options < 2 {
+		return 1
+	}
+	d := e.market.dealer(dealerID)
+	if d.multi < e.P.SpeedMin || float64(d.fastest) < e.P.SpeedShare*float64(d.multi) {
+		return 1
+	}
+	return e.P.SpeedPremium
 }
 
 // quoteRatio is the price over list price to quote for a request, or 0 to decline.

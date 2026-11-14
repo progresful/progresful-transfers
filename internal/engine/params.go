@@ -47,6 +47,12 @@ type Params struct {
 	// SameDayPremium multiplies the same-day price: the riskiest option, and at equal
 	// prices the one dealers always take.
 	SameDayPremium float64 `json:"sameDayPremium"`
+	// SpeedPremium multiplies the price of the fastest of several options for a dealer that
+	// took the fastest in at least SpeedShare of its orders with a choice, once it has
+	// SpeedMin such orders (0 or 1: off). Dealers differ in what speed is worth to them.
+	SpeedPremium float64 `json:"speedPremium"`
+	SpeedShare   float64 `json:"speedShare"`
+	SpeedMin     int     `json:"speedMin"`
 	// MinMarginCents and MinMarginShare are the least expected margin to take a request:
 	// price - cost must reach both the absolute amount and the share of the cost.
 	MinMarginCents int     `json:"minMarginCents"`
@@ -336,6 +342,8 @@ func DefaultParams() Params {
 		FloorMult:      1.10,
 		SlowOptions:    0,
 		SameDayPremium: 1.00,
+		SpeedShare:     0.9,
+		SpeedMin:       8,
 		MinMarginCents: 300,
 		MinMarginShare: 0.05,
 		MinSlackMin:    120,

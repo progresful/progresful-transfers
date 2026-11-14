@@ -44,6 +44,14 @@ func (e *Engine) onWon(o *api.Order, at int) {
 		e.winsDay, e.winsToday = day, 0
 	}
 	e.winsToday++
+	if q, ok := e.quotes[o.ID]; ok && q.Fast != "" {
+		// The dealer had a choice of options: count whether it took the fastest.
+		d := e.market.dealer(o.DealerID)
+		d.multi++
+		if o.Option == q.Fast {
+			d.fastest++
+		}
+	}
 	e.onQuoteAnswer(o.ID, true)
 	e.applyFacts(ob)
 	e.dispatch(ob)

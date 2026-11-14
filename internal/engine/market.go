@@ -32,6 +32,10 @@ type dealerBook struct {
 	quotes   int
 	wins     int
 	trust    int // orders delivered on time, halved by a late one (counts at level 8)
+	// multi and fastest: orders won with several options quoted, and how many of them took
+	// the fastest. Dealers differ in what speed is worth to them, anew in every world.
+	multi   int
+	fastest int
 }
 
 // dayBook holds what the market does today only: the competitor's day factor, a price
