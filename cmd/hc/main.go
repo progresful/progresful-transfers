@@ -8,9 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/config"
-	"highwaycoins/internal/geo"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/config"
+	"progresful-transfers/internal/geo"
 )
 
 const (

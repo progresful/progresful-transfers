@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"highwaycoins/internal/api"
+	"progresful-transfers/internal/api"
 )
 
 const earthRadiusKm = 6371.0

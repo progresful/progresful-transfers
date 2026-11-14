@@ -1,8 +1,8 @@
 package main
 
 import (
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/notes"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/notes"
 )
 
 // verdict of one field of one leg.

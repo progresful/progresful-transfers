@@ -4,7 +4,7 @@ import (
 	"math"
 	"sort"
 
-	"highwaycoins/internal/api"
+	"progresful-transfers/internal/api"
 )
 
 const (

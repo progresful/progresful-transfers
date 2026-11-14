@@ -19,8 +19,8 @@ import (
 	"sort"
 	"strings"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/notes"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/notes"
 )
 
 const (

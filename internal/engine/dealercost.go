@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
 )
 
 // dealerCost is the factor on the cost of a request for who its dealer is.

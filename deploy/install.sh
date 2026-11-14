@@ -15,10 +15,11 @@ if [ "${1:-}" = "-key" ]; then team="${2:?-key needs a team name as in .env}"; f
 files=$(find cmd internal -name '*.go' -type f | LC_ALL=C sort)
 logic=$(echo "$files" | grep -v -e '^internal/ui/' -e '^cmd/hc/ui\.go$')
 hash=$( (cat go.mod; for f in $logic; do echo "== $f"; cat "$f"; done) | shasum -a 256 | cut -c1-12)
+module=$(sed -n 's/^module[[:space:]]*//p' go.mod | head -1)
 version=$(sed -n 's/^[[:space:]]*Version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' internal/engine/version.go | head -1)
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X highwaycoins/internal/engine.SourceHash=${hash}" -o "$out/hc" ./cmd/hc
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X ${module}/internal/engine.SourceHash=${hash}" -o "$out/hc" ./cmd/hc
 cp deploy/bahn-ui.service deploy/bahn-final.service deploy/bahn-watch.service deploy/bahn.caddy "$out/"
 [ -f runs/map.json ] && cp runs/map.json "$out/map.json"
 echo "built linux/amd64 hc  engine ${version}  source ${hash}"

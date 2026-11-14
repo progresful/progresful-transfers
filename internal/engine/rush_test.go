@@ -3,8 +3,8 @@ package engine
 import (
 	"testing"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
 )
 
 // rushEngine is an engine on a Monday morning with one dealer that sends most requests.

@@ -3,8 +3,8 @@ package engine
 import (
 	"testing"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
 )
 
 // A request is declined when too little time is left to find a driver for its drive: the

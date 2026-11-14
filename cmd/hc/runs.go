@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"highwaycoins/internal/engine"
-	"highwaycoins/internal/store"
+	"progresful-transfers/internal/engine"
+	"progresful-transfers/internal/store"
 )
 
 func cmdRuns(_ context.Context, args []string) error {

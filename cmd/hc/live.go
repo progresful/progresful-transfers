@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"highwaycoins/internal/engine"
-	"highwaycoins/internal/runner"
+	"progresful-transfers/internal/engine"
+	"progresful-transfers/internal/runner"
 )
 
 // finalLevel is the level of the final and of the test finals.

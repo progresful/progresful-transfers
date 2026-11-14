@@ -3,9 +3,9 @@ package engine
 import (
 	"testing"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
-	"highwaycoins/internal/geo"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
+	"progresful-transfers/internal/geo"
 )
 
 func testMap(t *testing.T) *geo.Map {

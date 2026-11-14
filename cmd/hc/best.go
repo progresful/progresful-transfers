@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"highwaycoins/internal/store"
+	"progresful-transfers/internal/store"
 )
 
 const (

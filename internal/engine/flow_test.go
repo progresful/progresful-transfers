@@ -3,8 +3,8 @@ package engine
 import (
 	"testing"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
 )
 
 // flowEngine is an engine at a level with quotes, in the morning of the first day.

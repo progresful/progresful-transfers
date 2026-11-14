@@ -3,8 +3,8 @@ package engine
 import (
 	"math"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
 )
 
 // A refused post is tried again at once without windows; further refusals wait

@@ -3,7 +3,7 @@ package cal
 import (
 	"testing"
 
-	"highwaycoins/internal/api"
+	"progresful-transfers/internal/api"
 )
 
 func hours() *api.OpeningHours {

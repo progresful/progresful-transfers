@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"highwaycoins/internal/api"
+	"progresful-transfers/internal/api"
 )
 
 func checkValid(t *testing.T, steps []api.FeeStep, now int) {

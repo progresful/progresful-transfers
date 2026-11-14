@@ -3,8 +3,8 @@ package engine
 import (
 	"math"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
 )
 
 // feeModel predicts the fee at which a gig gets booked, as a multiple of its typical fee,

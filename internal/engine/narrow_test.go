@@ -3,9 +3,9 @@ package engine
 import (
 	"testing"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
-	"highwaycoins/internal/geo"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
+	"progresful-transfers/internal/geo"
 )
 
 // The dealer's note of a real request: the pickup site is open 10:00-17:00 on weekdays,

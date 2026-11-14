@@ -12,9 +12,9 @@ import (
 	"sort"
 	"time"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
-	"highwaycoins/internal/config"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
+	"progresful-transfers/internal/config"
 )
 
 const (

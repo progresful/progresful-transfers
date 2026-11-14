@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"highwaycoins/internal/cal"
+	"progresful-transfers/internal/cal"
 )
 
 func dealerCostEngine(t *testing.T) *Engine {

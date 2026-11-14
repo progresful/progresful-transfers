@@ -1,9 +1,9 @@
 package engine
 
 import (
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
-	"highwaycoins/internal/notes"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
+	"progresful-transfers/internal/notes"
 )
 
 // lastBusinessDay is the last Monday of the world: no deadline falls after it.

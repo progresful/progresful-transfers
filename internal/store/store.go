@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"highwaycoins/internal/api"
+	"progresful-transfers/internal/api"
 )
 
 const (

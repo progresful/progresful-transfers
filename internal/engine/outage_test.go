@@ -4,9 +4,9 @@ import (
 	"math"
 	"testing"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
-	"highwaycoins/internal/geo"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
+	"progresful-transfers/internal/geo"
 )
 
 // outageMap has two towns close together (one region) and one far away.

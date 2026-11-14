@@ -3,8 +3,8 @@ package engine
 import (
 	"math"
 
-	"highwaycoins/internal/cal"
-	"highwaycoins/internal/geo"
+	"progresful-transfers/internal/cal"
+	"progresful-transfers/internal/geo"
 )
 
 // The competitor's outage. Every week, on one working day, its systems are down in one

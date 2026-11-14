@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
 )
 
 // The trust rush (level 8). A dealer counts the orders delivered to it on time, up to 25,

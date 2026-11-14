@@ -3,7 +3,7 @@ package engine
 import (
 	"math"
 
-	"highwaycoins/internal/api"
+	"progresful-transfers/internal/api"
 )
 
 // snowSpell is one forecast: snow in some places between two minutes of the world. A day

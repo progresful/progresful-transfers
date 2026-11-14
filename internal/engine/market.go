@@ -3,7 +3,7 @@ package engine
 import (
 	"math"
 
-	"highwaycoins/internal/cal"
+	"progresful-transfers/internal/cal"
 )
 
 const (

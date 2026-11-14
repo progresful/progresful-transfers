@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
 )
 
 func rosterOf(n int) []api.DriverProfile {

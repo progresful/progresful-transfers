@@ -10,11 +10,11 @@ import (
 	"regexp"
 	"time"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
-	"highwaycoins/internal/engine"
-	"highwaycoins/internal/geo"
-	"highwaycoins/internal/store"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
+	"progresful-transfers/internal/engine"
+	"progresful-transfers/internal/geo"
+	"progresful-transfers/internal/store"
 )
 
 const (

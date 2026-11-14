@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	"highwaycoins/internal/engine"
-	"highwaycoins/internal/runner"
-	"highwaycoins/internal/store"
+	"progresful-transfers/internal/engine"
+	"progresful-transfers/internal/runner"
+	"progresful-transfers/internal/store"
 )
 
 // maxParallel is the team's limit of unfinished practice worlds.

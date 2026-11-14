@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"sort"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/engine"
-	"highwaycoins/internal/geo"
-	"highwaycoins/internal/runner"
-	"highwaycoins/internal/store"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/engine"
+	"progresful-transfers/internal/geo"
+	"progresful-transfers/internal/runner"
+	"progresful-transfers/internal/store"
 )
 
 const (

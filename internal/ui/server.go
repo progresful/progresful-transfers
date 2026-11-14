@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"time"
 
-	"highwaycoins/internal/api"
+	"progresful-transfers/internal/api"
 )
 
 //go:embed static

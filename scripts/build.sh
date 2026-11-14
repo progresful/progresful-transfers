@@ -13,6 +13,7 @@ files=$(find cmd internal -name '*.go' -type f | LC_ALL=C sort)
 # reads run logs, so changing it does not change the hash.
 logic=$(echo "$files" | grep -v -e '^internal/ui/' -e '^cmd/hc/ui\.go$')
 hash=$( (cat go.mod; for f in $logic; do echo "== $f"; cat "$f"; done) | shasum -a 256 | cut -c1-12)
+module=$(sed -n 's/^module[[:space:]]*//p' go.mod | head -1)
 version=$(sed -n 's/^[[:space:]]*Version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' internal/engine/version.go | head -1)
 
 mkdir -p runs/engines bin
@@ -24,6 +25,6 @@ fi
 
 # Build beside the target and rename: a rename leaves running copies of the old binary
 # alone, while writing over bin/hc in place gets them killed (macOS code signing).
-go build -ldflags "-X highwaycoins/internal/engine.SourceHash=${hash}" -o bin/hc.new ./cmd/hc
+go build -ldflags "-X ${module}/internal/engine.SourceHash=${hash}" -o bin/hc.new ./cmd/hc
 mv -f bin/hc.new bin/hc
 echo "built bin/hc  engine ${version}  source ${hash}  snapshot ${snapshot}"

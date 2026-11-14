@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
-	"highwaycoins/internal/config"
-	"highwaycoins/internal/ui"
+	"progresful-transfers/internal/config"
+	"progresful-transfers/internal/ui"
 )
 
 const (

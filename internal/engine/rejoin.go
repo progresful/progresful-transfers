@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"highwaycoins/internal/api"
+	"progresful-transfers/internal/api"
 )
 
 // Snapshot gig statuses that still carry cars.

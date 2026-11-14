@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"highwaycoins/internal/cal"
+	"progresful-transfers/internal/cal"
 )
 
 // Every price request leaves a record of how it was answered: the reason when it was

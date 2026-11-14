@@ -3,10 +3,10 @@ package engine
 import (
 	"sort"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
-	"highwaycoins/internal/geo"
-	"highwaycoins/internal/notes"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
+	"progresful-transfers/internal/geo"
+	"progresful-transfers/internal/notes"
 )
 
 const (

@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"highwaycoins/internal/api"
+	"progresful-transfers/internal/api"
 )
 
 // Gig statuses as the engine tracks them.

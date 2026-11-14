@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"highwaycoins/internal/api"
+	"progresful-transfers/internal/api"
 )
 
 func twoPlaces() *api.WorldMap {

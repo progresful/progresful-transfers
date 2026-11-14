@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"highwaycoins/internal/cal"
+	"progresful-transfers/internal/cal"
 )
 
 func testMarket() *market {

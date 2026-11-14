@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"highwaycoins/internal/engine"
-	"highwaycoins/internal/runner"
-	"highwaycoins/internal/store"
+	"progresful-transfers/internal/engine"
+	"progresful-transfers/internal/runner"
+	"progresful-transfers/internal/store"
 )
 
 // kvFlag collects repeated name=value flags.

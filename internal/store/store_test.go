@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"highwaycoins/internal/api"
+	"progresful-transfers/internal/api"
 )
 
 // A run's log must give back exactly what the run sent and received: the request tape is

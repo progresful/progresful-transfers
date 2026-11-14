@@ -3,9 +3,9 @@ package engine
 import (
 	"testing"
 
-	"highwaycoins/internal/api"
-	"highwaycoins/internal/cal"
-	"highwaycoins/internal/geo"
+	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
+	"progresful-transfers/internal/geo"
 )
 
 // laneMap has a hop inside a town, a middle lane and a long haul.
