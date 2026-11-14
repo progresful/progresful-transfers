@@ -34,23 +34,22 @@
   html, body { height: 100%; margin: 0; }
   body { background: var(--paper); color: var(--ink); font: 15px/1.35 "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   button, select { font: inherit; color: inherit; }
-  #app { display: grid; grid-template-columns: minmax(0, 1fr) 408px; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  #app { display: grid; grid-template-columns: minmax(0, 1fr) clamp(520px, 41vw, 700px); grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
 
   /* top bar */
-  header { grid-column: 1 / 3; display: flex; align-items: center; gap: 16px; padding: 0 18px; height: 58px; background: var(--surface); border-bottom: 1px solid var(--rule); position: relative; }
-  header::after { content: ""; position: absolute; left: 0; right: 0; bottom: -4px; height: 3px; background: repeating-linear-gradient(90deg, var(--marking) 0 26px, transparent 26px 44px); opacity: .9; z-index: 500; pointer-events: none; }
+  header { grid-column: 1 / 3; display: flex; align-items: center; gap: 14px; padding: 0 16px; height: 64px; background: var(--surface); border-bottom: 1px solid var(--rule); position: relative; }
   .brand { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; }
   .brand b { font: 700 22px/1 "Barlow Condensed", sans-serif; letter-spacing: .06em; text-transform: uppercase; }
   .brand span { color: var(--ink-3); font-size: 13px; }
   .pick { position: relative; min-width: 0; }
-  .pick select { appearance: none; background: var(--raised); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 34px 8px 12px; max-width: 44vw; cursor: pointer; text-overflow: ellipsis; }
+  .pick select { appearance: none; background: var(--raised); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 30px 8px 12px; width: 230px; max-width: 22vw; cursor: pointer; text-overflow: ellipsis; }
   .pick::after { content: "▾"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-3); pointer-events: none; }
   .pill { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--rule); color: var(--ink-2); background: var(--raised); white-space: nowrap; }
   .pill.live { border-color: var(--late); color: var(--late); }
   .pill.live i { width: 8px; height: 8px; border-radius: 50%; background: var(--late); animation: pulse 1.3s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .2; transform: scale(.7); } }
   #sub { color: var(--ink-3); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .clock { margin-left: auto; display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+  .clock { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
   .clock .day { font: 600 15px "Barlow Condensed", sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); }
   .clock .time { font: 700 34px/1 "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums; }
   .icon-btn { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--rule); background: var(--raised); cursor: pointer; display: grid; place-items: center; font-size: 16px; }
@@ -108,7 +107,7 @@
   .flow-key b { display: block; font: 600 22px/1.1 "Barlow Condensed", sans-serif; color: var(--ink); font-variant-numeric: tabular-nums; }
   .flow-key span { display: flex; align-items: center; gap: 6px; }
   #chart-box { position: relative; }
-  #chart { width: 100%; height: 118px; display: block; overflow: visible; }
+  #chart { width: 100%; height: 104px; display: block; overflow: visible; }
   .tip { position: absolute; pointer-events: none; background: var(--raised); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 9px; font-size: 13px; box-shadow: var(--shadow); white-space: nowrap; transform: translateX(-50%); z-index: 600; }
   #chart-tip { top: -6px; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -146,6 +145,45 @@
   #timeline { display: block; width: 100%; height: 104px; cursor: pointer; touch-action: none; }
   #tl-tip { bottom: 100%; margin-bottom: 2px; }
   #tl-tip b { font-weight: 600; }
+  /* the week's numbers, in the top bar */
+  .kpis { display: flex; align-items: stretch; gap: 0; margin: 0 auto; min-width: 0; }
+  .kp { padding: 0 16px; border-left: 1px solid var(--rule-soft); display: grid; align-content: center; min-width: 0; }
+  .kp:first-child { border-left: 0; }
+  .kp .k { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; white-space: nowrap; }
+  .kp .line { display: flex; align-items: baseline; gap: 7px; white-space: nowrap; }
+  .kp b { font: 600 25px/1.05 "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums; }
+  .kp.main b { font-size: 34px; font-weight: 700; }
+  .kp .s { font-size: 12.5px; color: var(--ink-2); }
+  /* cards that lie on the map */
+  .ov { position: absolute; z-index: 450; background: color-mix(in srgb, var(--surface) 93%, transparent); border: 1px solid var(--rule); border-radius: 10px; box-shadow: var(--shadow); backdrop-filter: blur(4px); padding: 10px 12px; }
+  .ov h2 { margin-bottom: 6px; }
+  .ov.now { top: 12px; left: 58px; display: flex; align-items: baseline; gap: 16px; font-size: 13.5px; color: var(--ink-2); padding: 8px 14px; white-space: nowrap; }
+  .ov.now b { font: 600 20px/1 "Barlow Condensed", sans-serif; color: var(--ink); font-variant-numeric: tabular-nums; margin-right: 4px; }
+  .ov.chart { right: 12px; bottom: 26px; width: 344px; }
+  .ov.feed { top: 12px; right: 12px; width: 344px; }
+  .d { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; flex: none; }
+  .d.road { background: var(--road); } .d.driver { background: var(--driver); } .d.wait { background: var(--wait); } .d.gone { background: var(--ink-3); }
+  .d.late { background: var(--late); border-radius: 2px; }
+  /* the two dense lists of the side panel */
+  .pane { display: flex; flex-direction: column; min-height: 0; flex: 1 1 50%; border-bottom: 1px solid var(--rule); }
+  .pane:last-child { border-bottom: 0; }
+  .pane-head { padding: 10px 14px 8px; flex: none; }
+  .pane-head h2 { margin-bottom: 7px; }
+  .flow.thin { height: 8px; border-radius: 4px; }
+  .flow.thin div { font-size: 0; }
+  .nums { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 13px; color: var(--ink-2); margin-top: 7px; align-items: baseline; }
+  .nums span { white-space: nowrap; }
+  .nums b { font: 600 16px "Barlow Condensed", sans-serif; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .dense { overflow-y: auto; min-height: 0; flex: 1; border-top: 1px solid var(--rule-soft); }
+  table.t { table-layout: fixed; font-size: 13px; }
+  table.t th { position: sticky; top: 0; z-index: 1; background: var(--surface); text-align: left; font-size: 10.5px; padding: 5px 6px 4px; border-bottom: 1px solid var(--rule); }
+  table.t td { padding: 3px 6px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid var(--rule-soft); }
+  table.t tr:hover td { background: var(--rule-soft); }
+  table.t .n { text-align: right; font-family: "Barlow Condensed", sans-serif; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+  table.t th.n { font-family: inherit; font-size: 10.5px; }
+  table.t .tm { color: var(--ink-3); font-family: "Barlow Condensed", sans-serif; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  table.t .dim { color: var(--ink-3); }
+  @media (max-width: 1500px) { .kp .s { display: none; } .kp { padding: 0 12px; } .brand span { display: none; } }
   @media (max-width: 1000px) {
     #app { grid-template-columns: 1fr; grid-template-rows: auto 52vh auto auto; height: auto; min-height: 100%; }
     aside { grid-column: 1; grid-row: 4; border-left: 0; } footer { grid-row: 3; grid-template-columns: 1fr; } .controls { border-right: 0; flex-wrap: wrap; }
@@ -157,16 +195,36 @@
 <body>
 <div id="app">
   <header>
-    <div class="brand"><b>Dispatch board</b><span>car deliveries across Finland</span></div>
+    <div class="brand"><b>Dispatch board</b></div>
     <label class="pick"><select id="runs" aria-label="Run to show"></select></label>
     <span id="mode" class="pill">Replay</span>
-    <span id="sub"></span>
+    <div class="kpis">
+      <div class="kp main"><span class="k">Margin</span><div class="line"><b id="s-margin">€0</b><span class="s" id="s-margin-sub"></span></div></div>
+      <div class="kp"><span class="k">Revenue</span><div class="line"><b id="s-revenue">€0</b><span class="s" id="s-revenue-sub"></span></div></div>
+      <div class="kp"><span class="k">Driver fees</span><div class="line"><b id="s-fees">€0</b><span class="s" id="s-fees-sub"></span></div></div>
+      <div class="kp"><span class="k">Orders won</span><div class="line"><b id="s-won">0</b><span class="s" id="s-won-sub"></span></div></div>
+      <div class="kp"><span class="k">On time</span><div class="line"><b id="s-ontime">–</b><span class="s" id="s-ontime-sub"></span></div></div>
+    </div>
     <div class="clock"><span class="day" id="clock-day">–</span><span class="time" id="clock-time">--:--</span></div>
     <button class="icon-btn" id="theme" title="Light or dark" aria-label="Switch between light and dark">◐</button>
   </header>
 
   <div id="stage">
     <div id="map"></div>
+    <div class="ov now" aria-label="Cars right now">
+      <span><i class="d wait"></i><b id="s-wait">0</b>no driver yet</span>
+      <span><i class="d driver"></i><b id="s-booked">0</b>driver booked</span>
+      <span><i class="d road"></i><b id="s-road">0</b>on the road</span>
+      <span id="s-done"></span>
+    </div>
+    <div class="ov feed" id="feed-box" hidden>
+      <h2><span id="feed-title">Final ranking</span><small id="feed-sub"></small></h2>
+      <table><thead><tr><th>#</th><th>Team</th><th>Margin</th><th>Orders</th><th>On time</th></tr></thead><tbody id="feed"></tbody></table>
+    </div>
+    <div class="ov chart">
+      <h2>Margin through the week <small id="chart-now"></small></h2>
+      <div id="chart-box"><svg id="chart" role="img" aria-label="Margin over time"></svg><div id="chart-tip" class="tip" hidden></div></div>
+    </div>
     <div class="key" aria-label="Map key">
       <div><span class="sw" style="background:var(--road)"></span>Car on the road</div>
       <div><span class="sw sq" style="background:var(--late)"></span>Car past its deadline</div>
@@ -177,95 +235,29 @@
   </div>
 
   <aside>
-    <div class="tabs" role="tablist">
-      <button class="on" data-tab="overview" role="tab">Overview</button>
-      <button data-tab="quotes" role="tab">Quotes</button>
-      <button data-tab="gigs" role="tab">Gigs</button>
+    <div class="pane">
+      <div class="pane-head">
+        <h2>Quotes to dealers <small>what was asked, what we offered, what came of it</small></h2>
+        <div class="flow thin" id="q-flow"><div class="r"></div><div class="g"></div><div class="w"></div><div class="b"></div></div>
+        <div class="nums" id="q-nums"></div>
+      </div>
+      <div class="dense"><table class="t">
+        <colgroup><col style="width:66px"><col><col style="width:54px"><col style="width:48px"><col style="width:74px"><col style="width:132px"><col style="width:54px"></colgroup>
+        <thead><tr><th>Asked</th><th>Lane</th><th class="n">Price</th><th class="n">× list</th><th>Answer</th><th>Then</th><th class="n">Margin</th></tr></thead>
+        <tbody id="q-rows"></tbody>
+      </table></div>
     </div>
-
-    <div class="tab" id="tab-overview">
-      <section>
-        <h2>Margin <small id="s-perorder"></small></h2>
-        <div class="hero" id="s-margin">€0</div>
-        <div class="hero-sub" id="s-margin-sub">&nbsp;</div>
-      </section>
-      <section class="grid">
-        <div class="kpi"><div class="k">Revenue</div><div class="v" id="s-revenue">€0</div><div class="s" id="s-revenue-sub"></div></div>
-        <div class="kpi"><div class="k">Driver fees</div><div class="v" id="s-fees">€0</div><div class="s" id="s-fees-sub"></div></div>
-        <div class="kpi"><div class="k">Orders won</div><div class="v" id="s-won">0</div><div class="s" id="s-won-sub"></div></div>
-        <div class="kpi"><div class="k">On time</div><div class="v" id="s-ontime">–</div><div class="s" id="s-ontime-sub"></div></div>
-      </section>
-      <section>
-        <h2>Cars right now <small id="s-done"></small></h2>
-        <div class="flow" id="flow"><div class="w"></div><div class="b"></div><div class="r"></div></div>
-        <div class="flow-key">
-          <div><b id="s-wait">0</b><span><span class="sw" style="background:var(--wait)"></span>No driver yet</span></div>
-          <div><b id="s-booked">0</b><span><span class="sw" style="background:var(--driver)"></span>Driver booked</span></div>
-          <div><b id="s-road">0</b><span><span class="sw" style="background:var(--road)"></span>On the road</span></div>
-        </div>
-      </section>
-      <section>
-        <h2>Margin through the week <small id="chart-now"></small></h2>
-        <div id="chart-box"><svg id="chart" role="img" aria-label="Margin over time"></svg><div id="chart-tip" class="tip" hidden></div></div>
-      </section>
-      <section id="feed-box" hidden>
-        <h2><span id="feed-title">Final ranking</span><small id="feed-sub"></small></h2>
-        <table><thead><tr><th>#</th><th>Team</th><th>Margin</th><th>Orders</th><th>On time</th></tr></thead><tbody id="feed"></tbody></table>
-      </section>
-      <section>
-        <h2>Latest</h2>
-        <div id="ticker"></div>
-      </section>
-    </div>
-
-    <div class="tab" id="tab-quotes" hidden>
-      <section>
-        <h2>Dealers' requests <small id="q-rate"></small></h2>
-        <div class="flow" id="q-flow"><div class="r"></div><div class="g"></div><div class="w"></div><div class="b"></div></div>
-        <div class="flow-key four">
-          <div><b id="q-won">0</b><span><span class="sw" style="background:var(--road)"></span>Won</span></div>
-          <div><b id="q-lost">0</b><span><span class="sw" style="background:var(--ink-3)"></span>Lost</span></div>
-          <div><b id="q-pass">0</b><span><span class="sw" style="background:var(--wait)"></span>Passed</span></div>
-          <div><b id="q-open">0</b><span><span class="sw" style="background:var(--driver)"></span>Waiting</span></div>
-        </div>
-      </section>
-      <section class="grid three">
-        <div class="kpi"><div class="k">Requests in</div><div class="v" id="q-in">0</div><div class="s" id="q-in-sub"></div></div>
-        <div class="kpi"><div class="k">Price won at</div><div class="v" id="q-ratio">–</div><div class="s">× list price</div></div>
-        <div class="kpi"><div class="k">Price lost at</div><div class="v" id="q-lratio">–</div><div class="s">× list price</div></div>
-      </section>
-      <section>
-        <h2>Latest requests <small>our price · against the list price</small></h2>
-        <div class="rows" id="q-rows"></div>
-      </section>
-    </div>
-
-    <div class="tab" id="tab-gigs" hidden>
-      <section>
-        <h2>Gigs in the drivers' app <small id="g-rate"></small></h2>
-        <div class="flow" id="g-flow"><div class="w"></div><div class="b"></div><div class="r"></div></div>
-        <div class="flow-key">
-          <div><b id="g-open">0</b><span><span class="sw" style="background:var(--wait)"></span>Open</span></div>
-          <div><b id="g-booked">0</b><span><span class="sw" style="background:var(--driver)"></span>Booked</span></div>
-          <div><b id="g-working">0</b><span><span class="sw" style="background:var(--road)"></span>Being driven</span></div>
-        </div>
-      </section>
-      <section class="grid three">
-        <div class="kpi"><div class="k">Posted</div><div class="v" id="g-posted">0</div><div class="s" id="g-posted-sub"></div></div>
-        <div class="kpi"><div class="k">Booked at</div><div class="v" id="g-fee">–</div><div class="s">× typical fee</div></div>
-        <div class="kpi"><div class="k">Wait for a driver</div><div class="v" id="g-waitmed">–</div><div class="s">median</div></div>
-        <div class="kpi"><div class="k">Views</div><div class="v" id="g-views">0</div><div class="s" id="g-views-sub"></div></div>
-        <div class="kpi"><div class="k">Given back</div><div class="v" id="g-drops">0</div><div class="s">by drivers</div></div>
-        <div class="kpi"><div class="k">Ran out</div><div class="v" id="g-expired">0</div><div class="s">no driver in time</div></div>
-      </section>
-      <section>
-        <h2>Open now <small>fee shown · age · views</small></h2>
-        <div class="rows" id="g-open-rows"></div>
-      </section>
-      <section>
-        <h2>Latest bookings <small>fee · wait</small></h2>
-        <div class="rows" id="g-book-rows"></div>
-      </section>
+    <div class="pane">
+      <div class="pane-head">
+        <h2>Gigs for drivers <small>what is in the drivers' app, and who took it</small></h2>
+        <div class="flow thin" id="g-flow"><div class="w"></div><div class="b"></div><div class="r"></div></div>
+        <div class="nums" id="g-nums"></div>
+      </div>
+      <div class="dense"><table class="t">
+        <colgroup><col style="width:66px"><col><col style="width:54px"><col style="width:48px"><col style="width:46px"><col style="width:132px"><col style="width:74px"></colgroup>
+        <thead><tr><th>Posted</th><th>Lane</th><th class="n">Fee</th><th class="n">× typ.</th><th class="n">Views</th><th>State</th><th>Due</th></tr></thead>
+        <tbody id="g-rows"></tbody>
+      </table></div>
     </div>
   </aside>
 
@@ -297,7 +289,7 @@ const QUIET_AHEAD = 25;   // minutes without any event ahead that count as quiet
 const QUIET_FACTOR = 14;  // how much faster quiet time runs
 const PASS_RATIO = 3;     // a quote this many times the list price is a "no, thank you"
 const DAY_START = 6 * HOUR, DAY_END = 22 * HOUR, FIRST_HOUR = 8 * HOUR;
-const TICKER_ROWS = 12, LIST_ROWS = 40, FRAME_MS = 40, STATS_MS = 200, LIVE_EASE = 0.08;
+const LIST_ROWS = 70, FRAME_MS = 40, STATS_MS = 200, LIVE_EASE = 0.08;
 const $ = (id) => document.getElementById(id);
 const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const euro = (cents) => (cents < 0 ? "−" : "") + "€" + Math.abs(Math.round(cents / 100)).toLocaleString("en-US");
@@ -377,7 +369,7 @@ const pickedAt = new Map(), deliveredAt = new Map(); // "order|leg" -> minute, k
 const H = { req: [], won: [], done: [], late: [] };    // per hour, for the timeline
 const D = { won: [], margin: [] };                     // per day, for the day headers
 let lastAct = 0;
-let T = 0, t0 = 0, tMax = 0, playing = true, following = false, ended = true, runID = "", source = null, skipQuiet = true, scrubbing = false, tab = "overview";
+let T = 0, t0 = 0, tMax = 0, playing = true, following = false, ended = true, runID = "", source = null, skipQuiet = true, scrubbing = false;
 
 function fresh() {
   return { orders: new Map(), reqs: new Map(), early: new Map(), gigs: new Map(), legGig: new Map(), drivers: new Map(), money: { margin: 0, revenue: 0, fees: 0, refunds: 0 },
@@ -628,82 +620,86 @@ function draw() {
   return { road, wait, booked };
 }
 
-// ---- side panel ------------------------------------------------------------
+// ---- top bar, map cards and the two lists ------------------------------------
 let lastStats = 0, counts = { road: 0, wait: 0, booked: 0 };
 const shown = {};
 function put(id, v) { const el = $(id); if (el.textContent !== v) el.textContent = v; }
 function html(id, v) { if (shown[id] !== v) { $(id).innerHTML = v; shown[id] = v; } }
 function flow(id, values) {
   const parts = $(id).children, tot = values.reduce((a, b) => a + b, 0);
-  values.forEach((v, i) => { parts[i].style.flexGrow = tot ? v : 0; parts[i].style.display = v ? "" : "none"; parts[i].textContent = v > 0 && v / tot > 0.08 ? v : ""; });
+  values.forEach((v, i) => { parts[i].style.flexGrow = tot ? v : 0; parts[i].style.display = v ? "" : "none"; });
 }
 function stats(now) {
   if (now - lastStats < STATS_MS) return; lastStats = now;
   put("clock-day", DAY_NAMES[Math.floor(T / DAY)] || ""); put("clock-time", hhmm(T));
-  if (tab === "overview") overview(); else if (tab === "quotes") quotes(); else gigs();
+  topbar(); quotes(); gigs(); chart();
   const liveNow = !ended && following;
   html("mode", liveNow ? "<i></i>Live" : !ended ? "Live · behind" : "Replay"); $("mode").className = "pill" + (liveNow ? " live" : "");
   $("live").hidden = ended || following;
   const atEnd = ended && T >= endOfShow() - 1;
   put("play", atEnd ? "↻" : playing ? "❚❚" : "▶"); $("play").title = atEnd ? "Play again" : playing ? "Pause" : "Play";
 }
-function overview() {
-  const m = S.money, n = S.n, kept = n.won - n.cancelled;
-  put("s-margin", euro(m.margin));
-  put("s-perorder", n.delivered ? `${euro(m.margin / n.delivered)} per delivered order` : "");
-  put("s-margin-sub", m.revenue > 0 ? `${Math.round(100 * m.margin / m.revenue)}% of revenue kept${m.refunds > 0 ? ` · ${euro(m.refunds)} refunded for late cars` : ""}` : "Revenue arrives when a car is delivered");
-  put("s-revenue", euro(m.revenue)); put("s-revenue-sub", n.delivered ? `${euro(m.revenue / n.delivered)} per order` : "");
+function topbar() {
+  const m = S.money, n = S.n, kept = n.won - n.cancelled, decided = n.won + n.lost;
+  put("s-margin", euro(m.margin)); put("s-margin-sub", n.delivered ? `${euro(m.margin / n.delivered)} an order` : "");
+  put("s-revenue", euro(m.revenue)); put("s-revenue-sub", n.delivered ? `${euro(m.revenue / n.delivered)} an order` : "");
   put("s-fees", euro(m.fees)); put("s-fees-sub", m.revenue > 0 ? `${Math.round(100 * m.fees / m.revenue)}% of revenue` : "");
-  const decided = n.won + n.lost;
   put("s-won", String(n.won)); put("s-won-sub", decided ? `${Math.round(100 * n.won / decided)}% of ${decided} requests` : "");
   const share = n.delivered ? 1 - Math.min(n.late, n.delivered) / n.delivered : null; // of the orders delivered so far
   put("s-ontime", share === null ? "–" : (100 * share).toFixed(1) + "%");
-  const st = share === null ? null : share >= 0.95 ? ["good", "✓", "comfortable"] : share >= 0.9 ? ["warn", "!", "near the 90% minimum"] : ["bad", "✕", "under the 90% minimum"];
-  html("s-ontime-sub", st ? `<span class="status ${st[0]}"><i>${st[1]}</i>${n.late} late · ${st[2]}</span>` : "");
+  const st = share === null ? null : share >= 0.95 ? ["good", "✓"] : share >= 0.9 ? ["warn", "!"] : ["bad", "✕"];
+  html("s-ontime-sub", st ? `<span class="status ${st[0]}"><i>${st[1]}</i>${n.late} late</span>` : "");
   put("s-road", String(counts.road)); put("s-wait", String(counts.wait)); put("s-booked", String(counts.booked));
   put("s-done", `${n.delivered} of ${kept} delivered`);
-  flow("flow", [counts.wait, counts.booked, counts.road]);
-  html("ticker", S.ticker.slice(-TICKER_ROWS).reverse().map((r) => `<div class="${r.cls || ""}"><time>${clock(r.t)}</time><i>${r.icon || "·"}</i><span>${esc(r.text)}</span></div>`).join(""));
-  chart();
 }
-function quotes() { // what dealers asked for, what we answered, what they took
-  const n = S.n, open = Math.max(0, n.requests - n.won - n.lost), lostPriced = Math.max(0, n.lost - n.passed);
+function orderState(o) { // where a won order stands: a mark and a few words
+  if (o.cancelled) return ["gone", "cancelled"];
+  if (o.legs.every((l) => l.delivered !== null)) { const at = Math.max(...o.legs.map((l) => l.delivered)); return o.late ? ["late", `late · ${clock(at)}`] : ["road", `✓ ${clock(at)}`]; }
+  if (o.legs.some((l) => l.picked !== null)) return [T > o.deadline ? "late" : "road", "on the road"];
+  const g = S.gigs.get(S.legGig.get(o.id + "|0"));
+  if (g && g.status === "working") return ["driver", "driver on the way"];
+  if (g && g.status === "booked") return ["driver", "driver booked"];
+  return [o.urgent || T > o.deadline ? "late" : "wait", `no driver · ${span(T - o.wonAt)}`];
+}
+function feeOf(o) { // the driver's fee for an order's car: its share when the gig carries several
+  const g = S.gigs.get(S.legGig.get(o.id + "|0")); if (!g || !g.fee) return 0;
+  if (g.legs.length === 1) return g.fee;
+  const r = S.reqs.get(o.id), typical = typicalOf(g);
+  return r && typical ? g.fee * r.ref / typical : g.fee / g.legs.length;
+}
+function quotes() { // what dealers asked for, what we answered, what they took, and what became of the order
+  const n = S.n, open = Math.max(0, n.requests - n.won - n.lost), lostPriced = Math.max(0, n.lost - n.passed), pricedN = n.won + lostPriced;
   flow("q-flow", [n.won, lostPriced, n.passed, open]);
-  put("q-won", String(n.won)); put("q-lost", String(lostPriced)); put("q-pass", String(n.passed)); put("q-open", String(open));
-  const priced = n.won + lostPriced;
-  put("q-rate", priced ? `${Math.round(100 * n.won / priced)}% of priced quotes won` : "");
-  put("q-in", String(n.requests)); put("q-in-sub", n.requests ? `${Math.round(100 * n.passed / n.requests)}% passed` : "");
-  put("q-ratio", n.won ? (S.sum.wonRatio / n.won).toFixed(2) : "–"); put("q-lratio", S.sum.lostN ? (S.sum.lostRatio / S.sum.lostN).toFixed(2) : "–");
+  html("q-nums", `<span><b>${n.requests}</b> asked</span><span><i class="d road"></i><b>${n.won}</b> won</span><span><i class="d gone"></i><b>${lostPriced}</b> lost</span><span><i class="d wait"></i><b>${n.passed}</b> passed</span><span><i class="d driver"></i><b>${open}</b> waiting</span>`
+    + `<span><b>${pricedN ? Math.round(100 * n.won / pricedN) + "%" : "–"}</b> of priced quotes won</span><span>won at <b>${n.won ? (S.sum.wonRatio / n.won).toFixed(2) : "–"}×</b> list</span><span>lost at <b>${S.sum.lostN ? (S.sum.lostRatio / S.sum.lostN).toFixed(2) : "–"}×</b></span>`);
   const list = [...S.reqs.values()].slice(-LIST_ROWS).reverse();
-  html("q-rows", list.length ? list.map((r) => {
-    const chip = r.outcome === "won" ? '<span class="chip won">✓ Won</span>' : r.passed ? '<span class="chip pass">Passed</span>' : r.outcome === "lost" ? '<span class="chip lost">Lost</span>' : '<span class="chip booked">Waiting</span>';
-    const price = r.passed || !r.price ? "–" : euro(r.price);
-    return `<div class="row"><time>${clock(r.at)}</time><div class="lane">${esc(name(r.from))} → ${esc(name(r.to))}<small>${chip}</small></div><div class="amt">${price}<small>${r.passed || !r.ratio ? "no offer" : r.ratio.toFixed(2) + "× list"}</small></div></div>`;
-  }).join("") : '<div class="empty">No request yet.</div>');
+  html("q-rows", list.map((r) => {
+    const o = r.outcome === "won" ? S.orders.get(r.id) : null;
+    const answer = r.outcome === "won" ? '<i class="d road"></i>won' : r.passed ? '<i class="d wait"></i>passed' : r.outcome === "lost" ? '<i class="d gone"></i>lost' : '<i class="d driver"></i>waiting';
+    let then = "", margin = "";
+    if (o) { const [cls, words] = orderState(o); then = `<i class="d ${cls}"></i>${esc(words)}`; const fee = feeOf(o); if (fee) margin = euro(o.price - fee); }
+    return `<tr><td class="tm">${clock(r.at)}</td><td title="${esc(name(r.from))} → ${esc(name(r.to))}">${esc(name(r.from))} → ${esc(name(r.to))}</td><td class="n">${r.passed || !r.price ? "–" : euro(r.price)}</td><td class="n dim">${r.passed || !r.ratio ? "" : r.ratio.toFixed(2)}</td><td>${answer}</td><td>${then}</td><td class="n">${margin}</td></tr>`;
+  }).join(""));
 }
-function gigs() { // what is in the drivers' app, and how it went
+function gigs() { // what is in the drivers' app, who took it, and when its car is due
   const n = S.n, all = [...S.gigs.values()], open = all.filter((g) => g.status === "open"), booked = all.filter((g) => g.status === "booked"), working = all.filter((g) => g.status === "working");
   flow("g-flow", [open.length, booked.length, working.length]);
-  put("g-open", String(open.length)); put("g-booked", String(booked.length)); put("g-working", String(working.length));
-  put("g-rate", n.posted ? `${Math.round(100 * n.booked / n.posted)}% of posts booked` : "");
-  put("g-posted", String(n.posted)); put("g-posted-sub", n.reposts ? `${n.reposts} posted again` : "");
-  put("g-fee", S.sum.typical ? (S.sum.fee / S.sum.typical).toFixed(2) : "–");
-  const med = median(S.waits); put("g-waitmed", med === null ? "–" : span(med));
-  put("g-views", n.views.toLocaleString("en-US")); put("g-views-sub", n.booked ? `${Math.round(n.views / n.booked)} per booking` : "");
-  put("g-drops", String(n.drops)); put("g-expired", String(n.expired));
+  const med = median(S.waits);
+  html("g-nums", `<span><b>${n.posted}</b> posted${n.reposts ? `, ${n.reposts} of them again` : ""}</span><span><i class="d wait"></i><b>${open.length}</b> open</span><span><i class="d driver"></i><b>${booked.length}</b> booked</span><span><i class="d road"></i><b>${working.length}</b> being driven</span>`
+    + `<span>booked at <b>${S.sum.typical ? (S.sum.fee / S.sum.typical).toFixed(2) : "–"}×</b> the typical fee</span><span>after <b>${med === null ? "–" : span(med)}</b> (median)</span><span><b>${n.views.toLocaleString("en-US")}</b> views</span><span><b>${n.drops}</b> given back</span><span><b>${n.expired}</b> ran out</span>`);
   open.sort((a, b) => a.postedAt - b.postedAt);
-  html("g-open-rows", open.length ? open.slice(0, LIST_ROWS).map((g) => {
-    const typical = typicalOf(g), fee = feeNow(g, T), old = T - g.postedAt > 6 * HOUR;
-    return `<div class="row"><time>${clock(g.postedAt)}</time><div class="lane">${esc(laneOf(g))}<small><span class="chip ${old ? "urgent" : "open"}">${old ? "! " : ""}open ${span(T - g.postedAt)}</span> · ${g.views} views</small></div><div class="amt">${euro(fee)}<small>${typical ? (fee / typical).toFixed(2) + "× typical" : ""}</small></div></div>`;
-  }).join("") : '<div class="empty">Every gig has a driver.</div>');
-  const taken = all.filter((g) => g.bookedAt !== null).sort((a, b) => b.bookedAt - a.bookedAt).slice(0, LIST_ROWS);
-  html("g-book-rows", taken.length ? taken.map((g) => {
-    const typical = typicalOf(g);
-    return `<div class="row"><time>${clock(g.bookedAt)}</time><div class="lane">${esc(laneOf(g))}<small>${g.postedAt !== null ? "after " + span(g.bookedAt - g.postedAt) : ""} · ${g.views} views</small></div><div class="amt">${euro(g.fee)}<small>${typical ? (g.fee / typical).toFixed(2) + "× typical" : ""}</small></div></div>`;
-  }).join("") : '<div class="empty">No booking yet.</div>');
+  const taken = [...working, ...booked].sort((a, b) => b.bookedAt - a.bookedAt), done = all.filter((g) => g.status === "done").sort((a, b) => b.lastAt - a.lastAt);
+  html("g-rows", [...open, ...taken, ...done].slice(0, LIST_ROWS).map((g) => {
+    const isOpen = g.status === "open", fee = isOpen ? feeNow(g, T) : g.fee, typical = typicalOf(g), o = g.legs[0] && S.orders.get(g.legs[0].orderId);
+    const state = isOpen ? `<i class="d ${T - g.postedAt > 6 * HOUR ? "late" : "wait"}"></i>open ${span(T - g.postedAt)}`
+      : g.status === "booked" ? `<i class="d driver"></i>booked${g.postedAt !== null ? " after " + span(g.bookedAt - g.postedAt) : ""}`
+      : g.status === "working" ? '<i class="d road"></i>being driven' : '<i class="d gone"></i>delivered';
+    const due = o ? (T > o.deadline && g.status !== "done" ? '<i class="d late"></i>' : "") + clock(o.deadline) : "";
+    return `<tr><td class="tm">${g.postedAt !== null ? clock(g.postedAt) : ""}</td><td title="${esc(laneOf(g))}">${esc(laneOf(g))}</td><td class="n">${fee ? euro(fee) : "–"}</td><td class="n dim">${typical && fee ? (fee / typical).toFixed(2) : ""}</td><td class="n dim">${g.views}</td><td>${state}</td><td class="tm">${due}</td></tr>`;
+  }).join(""));
 }
 // The margin through the week: one line, a zero rule, day rules; the point under the pointer is named.
-const CH = { w: 372, h: 118, top: 8, bottom: 20 };
+const CH = { w: 320, h: 104, top: 6, bottom: 18 };
 function chartScale() {
   const s = S.series, [a, b] = week(); let lo = 0, hi = 100;
   for (const [, v] of s) { if (v < lo) lo = v; if (v > hi) hi = v; }
@@ -737,12 +733,6 @@ $("chart-box").addEventListener("pointermove", (ev) => {
   tip.hidden = false; tip.textContent = `${clock(p[0])} · ${euro(p[1])}`; tip.style.left = Math.max(60, Math.min(box.width - 60, k.x(p[0]) / CH.w * box.width)) + "px";
 });
 $("chart-box").addEventListener("pointerleave", () => { $("chart-tip").hidden = true; });
-for (const b of document.querySelectorAll(".tabs button")) b.onclick = () => {
-  tab = b.dataset.tab; lastStats = 0;
-  for (const o of document.querySelectorAll(".tabs button")) o.classList.toggle("on", o === b);
-  for (const name of ["overview", "quotes", "gigs"]) $("tab-" + name).hidden = name !== tab;
-};
-
 // ---- timeline: a card per day, a tick per hour; requests and wins above the line, deliveries below
 const tl = { el: $("timeline"), ctx: $("timeline").getContext("2d"), w: 0, h: 0, pad: 4, hover: null };
 const TL = { head: 22, foot: 16, gap: 6 };
@@ -875,7 +865,7 @@ async function open(id) {
   runID = id; clearLog();
   T = 0; t0 = 0; ended = !(info && info.live); following = !ended; playing = true;
   const m = (info && info.meta) || {};
-  $("sub").textContent = [m.kind === "final" ? "the final" : m.kind === "board" ? "ranking run" : m.kind ? m.kind + " run" : "", m.engine ? "engine " + m.engine : "", info && !info.live && !info.complete && m.startedAt ? "stopped before the week ended" : ""].filter(Boolean).join(" · ");
+  $("runs").title = [m.kind === "final" ? "the final" : m.kind === "board" ? "ranking run" : m.kind ? m.kind + " run" : "", m.engine ? "engine " + m.engine : "", info && !info.live && !info.complete && m.startedAt ? "stopped before the week ended" : ""].filter(Boolean).join(" · ");
   homes = {};
   try { for (const d of await json(`/api/runs/${encodeURIComponent(id)}/roster`)) homes[d.id] = d.homePlaceId; } catch (err) { /* a run without a roster still plays */ }
   let first = true, opened = false;
@@ -932,7 +922,7 @@ async function refreshRuns() { // a new run shows up in the list; a run that sta
     feed();
     requestAnimationFrame(frame);
     setInterval(() => { if (!document.hidden) refreshRuns(); }, 10000);
-  } catch (err) { $("sub").textContent = "Cannot load: " + err.message; }
+  } catch (err) { $("mode").textContent = "Cannot load: " + err.message; }
 })();
 </script>
 </body>
