@@ -42,11 +42,47 @@ func TestDefaultsByLevel(t *testing.T) {
 // The fee a gig holds at before the deadline ramp: the typical fee, except where the bench
 // found another level better.
 func TestHoldFeeByLevel(t *testing.T) {
-	want := map[int]float64{1: 1.0, 2: 0.9, 3: 1.0, 4: 1.0, 5: 1.0, 6: 1.0, 7: 1.15, 8: 1.15}
+	want := map[int]float64{1: 1.0, 2: 0.9, 3: 1.0, 4: 1.0, 5: 1.0, 6: 1.0, 7: 1.15, 8: 1.05}
 	for level, mid := range want {
 		if got := DefaultParamsFor(level).FeeMid; got != mid {
 			t.Errorf("level %d holds at %.2f, want %.2f", level, got, mid)
 		}
+	}
+}
+
+// Level 8's fee clock since e18: a low hold that creeps up before the deadline pressure,
+// and no rise for a car that is already late. The other levels keep the plain clock, and
+// the switches that came with e18 are off everywhere.
+func TestFeeClockByLevel(t *testing.T) {
+	for level := 1; level <= 8; level++ {
+		p := DefaultParamsFor(level)
+		holdMax, lateMax := 0.0, 1.6
+		if level == 8 {
+			holdMax, lateMax = 1.25, 1.0
+		}
+		if p.HoldMax != holdMax || p.LateMax != lateMax {
+			t.Errorf("level %d: hold rises to %.2f, late fee to %.2f, want %.2f and %.2f", level, p.HoldMax, p.LateMax, holdMax, lateMax)
+		}
+		if p.SnowBuffer != 0 || p.SnowRisk != 0 || p.ThinRisk != 0 || p.ThinRoster != 0 {
+			t.Errorf("level %d: snow and thin-roster switches should be off: %+v", level, []float64{p.SnowBuffer, p.SnowRisk, p.ThinRisk, float64(p.ThinRoster)})
+		}
+	}
+}
+
+// A late car's fee plan at level 8 stays at the typical fee and still rises towards the
+// end of the world, so no car is left in the yard for want of a fee.
+func TestLateFeeStaysFlatThenRisesAtTheEnd(t *testing.T) {
+	p := DefaultParamsFor(8)
+	now, base, endsAt := 3000, 10000, 14280
+	steps := p.lateSchedule(now, base, endsAt, 4*base)
+	if len(steps) < 2 || steps[0].FeeCents != base || steps[0].At != now {
+		t.Fatalf("late plan %+v: want it to open at the typical fee now", steps)
+	}
+	if steps[1].At < now+p.LateRampMin {
+		t.Errorf("the fee rises at %d, before the late ramp would have ended (%d)", steps[1].At, now+p.LateRampMin)
+	}
+	if last := steps[len(steps)-1]; last.FeeCents != 4*base || last.At > endsAt-p.LastLeadMin+stepGridMin {
+		t.Errorf("last step %+v: want the top fee %d by %d", last, 4*base, endsAt-p.LastLeadMin)
 	}
 }
 

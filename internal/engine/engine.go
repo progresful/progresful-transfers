@@ -39,6 +39,8 @@ type Engine struct {
 	// cold is true in a world that was joined after its first day with no order of ours:
 	// its dealers have gone days without an answer (Params.JoinCost).
 	cold bool
+	// snow is the forecasts heard so far (snow.go).
+	snow []snowSpell
 	// decided is why each price request was answered as it was, for the run log; why,
 	// whyRisk and whyCap are filled while a request is priced.
 	decided []Decision
@@ -224,7 +226,9 @@ func (e *Engine) handle(ev *api.Event) {
 		e.onLedger(ev.Line)
 	case api.KindOfferAnswered:
 		e.onOfferAnswered(ev)
-	case api.KindRelease, api.KindForecast:
+	case api.KindForecast:
+		e.onForecast(ev)
+	case api.KindRelease:
 		// Not acted on yet.
 	}
 }

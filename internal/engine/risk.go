@@ -188,7 +188,8 @@ func (e *Engine) lateRisk(req *api.PriceRequest, opt api.DeliveryOption) float64
 			leg, from, by = e.realLeg(req), ready, deadline
 		}
 		if e.P.RiskModel == riskModelLaneID {
-			worst = math.Max(worst, e.laneRisk(leg, req.RespondBy, from, by, opt.Kind, req.ReferenceFeeCents, req.Options[0].ListPriceCents))
+			risk := e.laneRisk(leg, req.RespondBy, from, by, opt.Kind, req.ReferenceFeeCents, req.Options[0].ListPriceCents)
+			worst = math.Max(worst, e.snowRisk(e.thinRisk(risk), leg, req.RespondBy, by))
 			continue
 		}
 		worst = math.Max(worst, e.legRisk(leg, from, by, opt.Kind))
@@ -263,6 +264,17 @@ func (e *Engine) openLateRisk(ob *orderBook) float64 {
 		}
 	}
 	return risk
+}
+
+// thinRisk is the modelled lateness risk of a request, raised by ThinRisk in a world with
+// fewer than ThinRoster drivers. The lane model counts the drivers near a pickup, but a
+// world short of drivers runs late everywhere: its weeks were late 1.3-1.4 times as often
+// as modelled, the weeks with more drivers 0.7-1.0 times.
+func (e *Engine) thinRisk(risk float64) float64 {
+	if e.P.ThinRisk <= 0 || len(e.drivers) == 0 || len(e.drivers) >= e.P.ThinRoster {
+		return risk
+	}
+	return math.Min(1, risk*e.P.ThinRisk)
 }
 
 // riskCap is the highest modelled lateness risk still quoted to a dealer: RiskMax,

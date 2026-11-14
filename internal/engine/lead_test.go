@@ -54,6 +54,7 @@ func TestShortLeadIsDeclined(t *testing.T) {
 // deadline pressure starts; without it the plan is what it was.
 func TestHoldRampRisesBetweenDiscoveryAndPressure(t *testing.T) {
 	p := DefaultParamsFor(8)
+	p.HoldMax = 0
 	now, last, base := 600, 600+30*60, 10000
 	plain := p.Schedule(now, last, base)
 	p.HoldMax = 1.5

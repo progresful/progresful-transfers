@@ -299,6 +299,7 @@ func TestSplitCarsKeepTheFeeClock(t *testing.T) {
 		slack float64 // steps sit on a 5-minute grid, so half the time can show one step less
 	}{{0, 0.8, 0.011}, {1, 1.1, 0.011}, {0.5, 0.925, 0.036}} {
 		e := chainEngine(t)
+		e.P.FeeMid, e.P.HoldMax = 1.15, 0 // the clock under test, not level 8's hold
 		e.P.SplitClock = c.share
 		deadline := cal.At(1, 20*cal.Hour)
 		first := chainOrder(e, "R1", "a", "b", e.now, deadline)

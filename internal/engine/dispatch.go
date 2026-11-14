@@ -130,11 +130,13 @@ const (
 
 // buffer is the minutes the delivery should arrive before the deadline, to absorb real driving times.
 func (e *Engine) buffer(ob *orderBook, legs []int) int {
-	drive := 0
+	drive, share := 0, e.P.BufferShare
 	for _, i := range legs {
-		drive += e.driveMin(&ob.order.Legs[i])
+		leg := &ob.order.Legs[i]
+		drive += e.driveMin(leg)
+		share = math.Max(share, e.bufferShare(leg, ob.order.Deadline))
 	}
-	return max(e.P.BufferMin, int(e.P.BufferShare*float64(drive)))
+	return max(e.P.BufferMin, int(share*float64(drive)))
 }
 
 // post puts one gig for the given cars of an order in the drivers' app.

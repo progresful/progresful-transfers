@@ -109,7 +109,7 @@ func (e *Engine) slack(req *api.PriceRequest, opt api.DeliveryOption) int {
 			from, by = ready, deadline // the note speaks of the first car
 			leg = e.realLeg(req)
 		}
-		buffer := max(e.P.BufferMin, int(e.P.BufferShare*float64(e.driveMin(leg))))
+		buffer := e.bufferOf(leg, by)
 		worst = min(worst, e.latestPickup(leg, by)-buffer-earliestPickup(leg, from))
 	}
 	return worst

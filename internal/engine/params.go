@@ -228,6 +228,15 @@ type Params struct {
 	// BufferShare of the drive (at least BufferMin) before the deadline, so drivers plan to arrive early.
 	BufferShare float64 `json:"bufferShare"`
 	BufferMin   int     `json:"bufferMin"`
+	// Snow (snow.go): a car whose way may lie through forecast snow gets SnowBuffer of its
+	// drive as the buffer instead of BufferShare (0: no difference), and its modelled
+	// lateness risk is multiplied by SnowRisk when its request is priced (0 or 1: no change).
+	SnowBuffer float64 `json:"snowBuffer"`
+	SnowRisk   float64 `json:"snowRisk"`
+	// ThinRoster and ThinRisk (risk.go): in a world with fewer than ThinRoster drivers the
+	// modelled lateness risk of a request is multiplied by ThinRisk (0: off).
+	ThinRoster int     `json:"thinRoster"`
+	ThinRisk   float64 `json:"thinRisk"`
 	// Chains (level 3+, chains.go): Chains 1 puts two single-car orders in one gig when the
 	// second pickup is within ChainHopMin road minutes of the first delivery and both cars
 	// stay on time with at least ChainSlackMin minutes of room to start. The chain's fee is
@@ -472,6 +481,16 @@ func DefaultParamsFor(level int) Params {
 			// the full week's cost on five worlds, 162 orders against 133, both 98.8 % on
 			// time. On full weeks 1.1 earns the same and is less safe, so it stays there.
 			p.JoinCost = 1.1
+			// The fee clock (e18). A driver looks at a gig once, so the fee shown at that
+			// moment is what counts, and most bookings come in the first hours at 0.8-1.05x:
+			// the hold at 1.15x mostly paid more to drivers who came anyway. The fee now
+			// holds at 1.05x and creeps to 1.25x by the time the deadline pressure starts,
+			// and the fee of a car that is already late no longer rises to 1.6x (its refund
+			// is owed and a higher fee did not bring it in sooner). On the 24 worlds: +419 a
+			// week (s.e. 137, better in 16 of them), 97.0 % on time against 96.9 %, worst
+			// week 94.7 % against 94.1 %; joined on Thursday it earns the same (4,964).
+			p.FeeMid, p.HoldMax = 1.05, 1.25
+			p.LateMax = 1
 		}
 		if level == paramsShortageLevel {
 			// Level 7's competitor is only 12-38 % above the list price, so the cost decides
