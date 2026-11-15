@@ -186,3 +186,102 @@ func TestLaneFeeByLevel(t *testing.T) {
 		}
 	}
 }
+
+// On a lane where drivers book readily the fee clock gets a lower cap; the quote's cost
+// and the lateness model keep the general one unless they are given their own.
+func TestEasyLanesGetALowerClockCap(t *testing.T) {
+	tests := []struct {
+		name                 string
+		quick                float64
+		known                bool
+		easyPrice            float64
+		wantClock, wantPrice int
+	}{
+		{"an easy lane", 0.50, true, 0, 4785, 5500},
+		{"a middle lane", 0.25, true, 0, 5170, 5500},
+		{"a hard lane", 0.10, true, 0, 5500, 5500},
+		{"a lane without a record", 0, false, 0, 5500, 5500},
+		{"an easy lane with a cap for the cost too", 0.50, true, 0.95, 4785, 5225},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			e := laneEngine(t, 8, 1.04, 1)
+			e.P.RefCapRisk = 1
+			e.P.EasyCap, e.P.MidCap, e.P.EasyPrice = 0.87, 0.94, tc.easyPrice
+			if tc.known {
+				laneQuick["a|b"] = tc.quick
+				t.Cleanup(func() { delete(laneQuick, "a|b") })
+			}
+			seeWorld(e, 20)
+			req := laneRequest("R1", e.now, 5500) // the lane's own fee in this world
+			e.onRequest(req)
+			if got := e.fairRef(req); got != tc.wantClock {
+				t.Errorf("the clock's fee base is %d, want %d", got, tc.wantClock)
+			}
+			if got := e.priceRef(req); got != tc.wantPrice {
+				t.Errorf("the quote's cost is built on %d, want %d", got, tc.wantPrice)
+			}
+			if got := e.riskRef(req); got != 5500 {
+				t.Errorf("the lateness model reads %d, want the general cap's 5500", got)
+			}
+		})
+	}
+	if p := DefaultParamsFor(8); p.EasyCap != 0 || p.MidCap != 0 || p.EasyPrice != 0 || p.MidPrice != 0 || p.EasyFrom != 0.34 || p.MidFrom != 0.22 {
+		t.Errorf("defaults: easy and middle caps off, classes from 0.34 and 0.22; got %+v", []float64{p.EasyCap, p.MidCap, p.EasyPrice, p.MidPrice, p.EasyFrom, p.MidFrom})
+	}
+}
+
+// OpenScale scales the count of orders without a driver that the lateness model reads:
+// with fewer counted, the same request looks safer.
+func TestOpenScaleLowersTheModelsLoad(t *testing.T) {
+	riskOf := func(scale float64) float64 {
+		p := DefaultParamsFor(8)
+		p.OpenScale = scale
+		e := New(8, p, testMap(t))
+		e.now, e.endsAt = cal.At(1, 10*cal.Hour), 14280
+		for i := 0; i < 12; i++ {
+			chainOrder(e, fmt.Sprintf("W%02d", i), "a", "b", e.now, cal.At(2, 20*cal.Hour)).wonAt = e.now - 30
+		}
+		req := testRequest("R1", e.now)
+		return e.lateRisk(req, req.Options[0])
+	}
+	plain, scaled := riskOf(0), riskOf(0.9)
+	if plain <= 0 || scaled >= plain {
+		t.Errorf("modelled risk %.4f with the plain count, %.4f with 0.9 of it: want it lower", plain, scaled)
+	}
+	if same := riskOf(1); same != plain {
+		t.Errorf("a scale of 1 is the plain count: %.4f against %.4f", same, plain)
+	}
+}
+
+// In a week where many orders never found a driver the lower caps of easy lanes are off:
+// the clock goes back to the general cap.
+func TestRescueTurnsTheEasyCapsOff(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		unbooked int
+		want     int
+	}{{"an ordinary week", 3, 4785}, {"a week short of drivers", 15, 5500}} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := laneEngine(t, 8, 1.04, 1)
+			e.P.EasyCap, e.P.RescueFrom = 0.87, 0.10
+			laneQuick["a|b"] = 0.5
+			t.Cleanup(func() { delete(laneQuick, "a|b") })
+			seeWorld(e, 20)
+			e.SetNow(cal.At(1, 14*cal.Hour))
+			for i := 0; i < 100; i++ {
+				ob := chainOrder(e, fmt.Sprintf("W%03d", i), "a", "b", e.now, cal.At(3, 20*cal.Hour))
+				ob.wonAt = e.now - 4*cal.Hour
+				if i >= tc.unbooked {
+					ob.firstBookedAt = ob.wonAt + 20
+					ob.legs[0].gig = &gigBook{id: fmt.Sprintf("g%d", i), status: gigBooked}
+				}
+			}
+			req := laneRequest("R1", e.now, 5500)
+			e.onRequest(req)
+			if got := e.fairRef(req); got != tc.want {
+				t.Errorf("the clock's fee base is %d, want %d", got, tc.want)
+			}
+		})
+	}
+}

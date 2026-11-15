@@ -56,13 +56,39 @@ func (e *Engine) cappedAt(req *api.PriceRequest, multiple float64) int {
 }
 
 // fairRef is the typical fee that the fee clock is anchored on: the request's own, or the
-// lane's cap when the request's is above it. The clock's cap is RefCapClock when that is
-// set, else RefCap.
+// lane's cap when the request's is above it.
 func (e *Engine) fairRef(req *api.PriceRequest) int {
+	return e.cappedAt(req, e.laneCap(req, e.clockCap(), e.P.EasyCap, e.P.MidCap))
+}
+
+// clockCap is the fee clock's cap on any lane: RefCapClock when that is set, else RefCap.
+func (e *Engine) clockCap() float64 {
 	if e.P.RefCapClock > 0 {
-		return e.cappedAt(req, e.P.RefCapClock)
+		return e.P.RefCapClock
 	}
-	return e.cappedAt(req, e.P.RefCap)
+	return e.P.RefCap
+}
+
+// laneCap is the cap for the request's lane: the general one, or the lower one of a lane
+// where drivers book readily (laneQuick). On such a lane a fee clock that opens lower is
+// booked at a fee as much lower and no later: orders whose typical fee was 10% or more
+// under the lane's paid 0.77 of the lane's fee against 0.88 and were late 1.5% of the
+// time against 1.6%. On a lane where few drivers book at once the same costs lateness
+// (6.7% against 3.3%), so those keep the general cap.
+func (e *Engine) laneCap(req *api.PriceRequest, general, easy, mid float64) float64 {
+	if (easy <= 0 && mid <= 0) || len(req.Legs) != 1 || e.rescue() {
+		return general
+	}
+	quick, ok := laneQuick[req.Legs[0].Pickup.PlaceID+"|"+req.Legs[0].Delivery.PlaceID]
+	switch {
+	case !ok:
+		return general
+	case easy > 0 && quick >= e.P.EasyFrom:
+		return math.Min(general, easy)
+	case mid > 0 && quick >= e.P.MidFrom:
+		return math.Min(general, mid)
+	}
+	return general
 }
 
 // riskRef is the typical fee that the lateness model reads: the capped one with
@@ -71,7 +97,7 @@ func (e *Engine) fairRef(req *api.PriceRequest) int {
 // on the capped fee, the capped fee is what tells how soon.
 func (e *Engine) riskRef(req *api.PriceRequest) int {
 	if e.P.RefCapRisk == 1 {
-		return e.fairRef(req)
+		return e.cappedAt(req, e.clockCap())
 	}
 	return req.ReferenceFeeCents
 }
@@ -80,7 +106,7 @@ func (e *Engine) riskRef(req *api.PriceRequest) int {
 // RefCapPrice, else the request's own.
 func (e *Engine) priceRef(req *api.PriceRequest) int {
 	if e.P.RefCapPrice == 1 {
-		return e.cappedAt(req, e.P.RefCap)
+		return e.cappedAt(req, e.laneCap(req, e.P.RefCap, e.P.EasyPrice, e.P.MidPrice))
 	}
 	return req.ReferenceFeeCents
 }

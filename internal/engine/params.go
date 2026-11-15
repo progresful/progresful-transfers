@@ -377,6 +377,26 @@ type Params struct {
 	RefCapPrice int     `json:"refCapPrice"`
 	// RefCapRisk 1 lets the lateness model read the capped fee as well.
 	RefCapRisk int `json:"refCapRisk"`
+	// EasyCap and MidCap are lower caps for the fee clock on lanes where drivers book
+	// readily: EasyCap where at least EasyFrom of a lane's orders were booked within ten
+	// minutes (laneQuick), MidCap from MidFrom. EasyPrice and MidPrice do the same for the
+	// quote's cost (with RefCapPrice). 0: the general cap.
+	EasyCap   float64 `json:"easyCap"`
+	EasyFrom  float64 `json:"easyFrom"`
+	MidCap    float64 `json:"midCap"`
+	MidFrom   float64 `json:"midFrom"`
+	EasyPrice float64 `json:"easyPrice"`
+	MidPrice  float64 `json:"midPrice"`
+	// RescueFrom turns the lower caps of easy and middle lanes off while the share of orders
+	// that never found a driver (the stuck guard's sign, risk.go) is at least this: a week
+	// that is short of drivers is no week to wait for a cheaper one. 0: never.
+	RescueFrom float64 `json:"rescueFrom"`
+	// OpenScale scales the count of orders without a driver that the lateness model reads
+	// (its strongest load input). With the lower clock caps on easy lanes the same world
+	// shows 10% more such orders at any moment and the model read that as danger: 9 more
+	// requests a week declined and 11 more fast options dropped, with no more late cars.
+	// 0 or 1: the plain count.
+	OpenScale float64 `json:"openScale"`
 	// RefCapClock is the fee clock's own cap when it differs from RefCap (which then caps
 	// the quote's cost only). 0: the clock uses RefCap.
 	RefCapClock float64 `json:"refCapClock"`
@@ -546,6 +566,8 @@ func DefaultParams() Params {
 		ChainSlackMin:  180,
 		ChainTryMin:    90,
 		ChainFeeShare:  0.9,
+		EasyFrom:       0.34,
+		MidFrom:        0.22,
 		ChainOffers:    0,
 		ChainOfferMult: 0.85,
 		Offers:         0,

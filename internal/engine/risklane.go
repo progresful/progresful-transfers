@@ -86,7 +86,14 @@ func (e *Engine) laneFeatures(leg *api.Leg, at, ready, deadline int, option stri
 	hourOfDay := (hour - requestDayStart/cal.Hour) / riskHourSpan
 	logLead := math.Log1p(float64(lead) / cal.Hour)
 	leadPerDrive := math.Min(riskLeadPerDrive, float64(lead)/float64(max(riskMinDriveMin, drive)))
-	logWonToday, logOpen := math.Log1p(float64(l.wonToday)), math.Log1p(float64(l.open))
+	open := float64(l.open)
+	if e.P.OpenScale > 0 {
+		// The model was fitted when cars found their driver sooner. A fee clock that waits
+		// for a cheaper driver leaves more orders without one at any moment, in the same
+		// world: the count is scaled back to what the model knows.
+		open *= e.P.OpenScale
+	}
+	logWonToday, logOpen := math.Log1p(float64(l.wonToday)), math.Log1p(open)
 	logFee, feeOverList := 0.0, 0.0
 	if fee > 0 && list > 0 {
 		logFee = math.Log(float64(max(riskMinFeeCents, fee)) / riskFeeUnit)

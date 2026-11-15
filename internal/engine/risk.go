@@ -359,6 +359,19 @@ func (e *Engine) neverCarried(ob *orderBook) bool {
 	return true
 }
 
+// rescue reports whether the week shows the stuck guard's sign at RescueFrom or more:
+// then the engine stops waiting for cheaper drivers on easy lanes (laneCap). The share is
+// worked out once a minute.
+func (e *Engine) rescue() bool {
+	if e.P.RescueFrom <= 0 {
+		return false
+	}
+	if e.rescueAt != e.now {
+		e.rescueAt, e.rescueOn = e.now, e.stuckShare() >= e.P.RescueFrom
+	}
+	return e.rescueOn
+}
+
 // stuckFactor is the stuck guard's factor on the risk cap: 1 up to StuckFrom, StuckMin
 // from StuckFull.
 func (e *Engine) stuckFactor() float64 {

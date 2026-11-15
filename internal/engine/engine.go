@@ -54,6 +54,9 @@ type Engine struct {
 	whyWar  float64
 	// freshDay is the last day whose morning round of fresh fee clocks has run (-1: none).
 	freshDay int
+	// rescueAt is the minute for which rescueOn was worked out (-1: never).
+	rescueAt int
+	rescueOn bool
 	// refResid is the log of each request's typical fee over its lane's, sorted, and
 	// laneFee the lane's own fee (cents) of each request on a known lane (laneref.go).
 	refResid []float64
@@ -87,6 +90,7 @@ func New(level int, p Params, m *geo.Map) *Engine {
 		quotes:   map[string]pendingQuote{},
 		facts:    map[string]notes.Facts{},
 		freshDay: -1,
+		rescueAt: -1,
 		laneFee:  map[string]float64{},
 	}
 	if e.P.MarketStart <= 0 {
