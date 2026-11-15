@@ -34,8 +34,8 @@ func (e *Engine) noteRef(req *api.PriceRequest) {
 	resid := math.Log(float64(req.ReferenceFeeCents)) - lane
 	if len(e.refResid) >= refCapMinSeen {
 		offset := e.refResid[len(e.refResid)/2] // the median of the requests before this one
-		if fair := int(math.Round(math.Exp(lane+offset) * e.P.RefCap)); fair < req.ReferenceFeeCents {
-			e.capRef[req.ID] = fair
+		e.laneFee[req.ID] = math.Exp(lane + offset)
+		if e.cappedAt(req, e.P.RefCap) < req.ReferenceFeeCents {
 			e.stats.RefCapped++
 		}
 	}
@@ -45,13 +45,24 @@ func (e *Engine) noteRef(req *api.PriceRequest) {
 	e.refResid = grown
 }
 
-// fairRef is the typical fee that the fee clock is anchored on: the request's own, or the
-// lane's cap when the request's is above it.
-func (e *Engine) fairRef(req *api.PriceRequest) int {
-	if capped, ok := e.capRef[req.ID]; ok {
-		return capped
+// cappedAt is the request's typical fee, capped at the given multiple of its lane's fee
+// when that is known.
+func (e *Engine) cappedAt(req *api.PriceRequest, multiple float64) int {
+	lane, ok := e.laneFee[req.ID]
+	if !ok || multiple <= 0 {
+		return req.ReferenceFeeCents
 	}
-	return req.ReferenceFeeCents
+	return min(req.ReferenceFeeCents, int(math.Round(lane*multiple)))
+}
+
+// fairRef is the typical fee that the fee clock is anchored on: the request's own, or the
+// lane's cap when the request's is above it. The clock's cap is RefCapClock when that is
+// set, else RefCap.
+func (e *Engine) fairRef(req *api.PriceRequest) int {
+	if e.P.RefCapClock > 0 {
+		return e.cappedAt(req, e.P.RefCapClock)
+	}
+	return e.cappedAt(req, e.P.RefCap)
 }
 
 // riskRef is the typical fee that the lateness model reads: the capped one with
@@ -69,7 +80,7 @@ func (e *Engine) riskRef(req *api.PriceRequest) int {
 // RefCapPrice, else the request's own.
 func (e *Engine) priceRef(req *api.PriceRequest) int {
 	if e.P.RefCapPrice == 1 {
-		return e.fairRef(req)
+		return e.cappedAt(req, e.P.RefCap)
 	}
 	return req.ReferenceFeeCents
 }

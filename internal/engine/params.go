@@ -377,6 +377,9 @@ type Params struct {
 	RefCapPrice int     `json:"refCapPrice"`
 	// RefCapRisk 1 lets the lateness model read the capped fee as well.
 	RefCapRisk int `json:"refCapRisk"`
+	// RefCapClock is the fee clock's own cap when it differs from RefCap (which then caps
+	// the quote's cost only). 0: the clock uses RefCap.
+	RefCapClock float64 `json:"refCapClock"`
 	// HoldAwake 1 lets the slow rise of a waiting gig's fee (FeeMid to HoldMax) count only
 	// the hours in which drivers look at the app, 07:00 to 22:00: a fee that creeps up
 	// through the night meets the morning's drivers higher than any of them asked for.
@@ -687,6 +690,24 @@ func DefaultParamsFor(level int) Params {
 			p.ChainNight = 1
 			p.HoldAwake = 1
 			p.RaceSafe = 1
+			// e24: the lane's fee instead of the request's noise. A request's typical fee is
+			// the lane's fee times one factor per world plus a noise of 13% of its own, and
+			// the engine took the noisy number as the truth three times: the fee clock
+			// opened on it, the quote's cost was 1.2 times it, and the lateness model read
+			// it. Drivers know nothing of the noise: orders whose typical fee was 12-16%
+			// over the lane's paid 1.00 of the lane's fee, those at the lane's level 0.91,
+			// and we won a third fewer of them at a price that was a tenth too high. Now a
+			// typical fee above 1.04 times the lane's (the table of 589 lanes times the
+			// world's factor, learned from the first twenty requests) counts as that cap
+			// for all three. On 96 worlds, 48 of them not used for any choice: +639 a week
+			// over e23 (s.e. 75, better in 78), 19 more orders, on time -0.1 points, and the
+			// one week that ended under 90% with e22 and e23 ends at 90.7%. Without the
+			// lateness model on the capped fee the gain is the same and on time falls by
+			// half a point; a cap of 1.00 earns 70 more on the 48 and its weakest week is
+			// 90.6%.
+			p.RefCap = 1.04
+			p.RefCapPrice = 1
+			p.RefCapRisk = 1
 		}
 		if level == paramsShortageLevel {
 			// Level 7's competitor is only 12-38 % above the list price, so the cost decides

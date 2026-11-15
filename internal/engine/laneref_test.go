@@ -15,8 +15,8 @@ func laneEngine(t *testing.T, level int, refCap float64, price int) *Engine {
 	laneLogRef["a|b"] = math.Log(5000)
 	t.Cleanup(func() { delete(laneLogRef, "a|b") })
 	p := DefaultParamsFor(level)
-	p.RefCap, p.RefCapPrice = refCap, price
-	p.RiskMax = 1 // the test map has no drivers
+	p.RefCap, p.RefCapPrice, p.RefCapRisk = refCap, price, 0 // each test turns on what it tests
+	p.RiskMax = 1                                            // the test map has no drivers
 	e := New(level, p, testMap(t))
 	e.now, e.endsAt = cal.At(0, 10*cal.Hour), 14280
 	return e
@@ -146,5 +146,43 @@ func TestRefCapRiskFeedsTheCappedFeeToTheModel(t *testing.T) {
 	raw, capped := riskOf(0), riskOf(1)
 	if raw <= 0 || capped <= raw {
 		t.Errorf("modelled risk on the raw fee %.4f, on the capped fee %.4f: want the capped one higher (a lower fee is booked later)", raw, capped)
+	}
+}
+
+// The fee clock can have a cap of its own, below the one the quote's cost is built on.
+func TestRefCapClockIsTheClocksOwnCap(t *testing.T) {
+	e := laneEngine(t, 8, 1.04, 1)
+	e.P.RefCapClock = 0.96
+	seeWorld(e, 20)
+	req := laneRequest("R1", e.now, 7000)
+	e.onRequest(req)
+	if got := e.fairRef(req); got != 5280 {
+		t.Errorf("the clock's fee base is %d, want 0.96 of the lane's 5500 = 5280", got)
+	}
+	if got := e.priceRef(req); got != 5720 {
+		t.Errorf("the quote's cost is built on %d, want 1.04 of the lane's 5500 = 5720", got)
+	}
+	low := laneRequest("R2", e.now, 5000)
+	e.onRequest(low)
+	if e.fairRef(low) != 5000 || e.priceRef(low) != 5000 {
+		t.Errorf("a typical fee under both caps is left alone: clock %d, price %d", e.fairRef(low), e.priceRef(low))
+	}
+}
+
+// The lane's fee is level 8's (e24); the levels below keep the request's own typical fee.
+func TestLaneFeeByLevel(t *testing.T) {
+	for level := 1; level <= 8; level++ {
+		p := DefaultParamsFor(level)
+		wantCap, wantOn := 0.0, 0
+		if level >= 8 {
+			wantCap, wantOn = 1.04, 1
+		}
+		if p.RefCap != wantCap || p.RefCapPrice != wantOn || p.RefCapRisk != wantOn {
+			t.Errorf("level %d: refCap %.2f, refCapPrice %d, refCapRisk %d; want %.2f, %d, %d", level, p.RefCap, p.RefCapPrice, p.RefCapRisk, wantCap, wantOn, wantOn)
+		}
+		// Measured and left off at every level.
+		if p.RefCapClock != 0 || p.GuardGraceMin != 0 || p.RiskMonday != 0 || p.ReturnReprice != 0 || p.MorningFreshMin != 0 {
+			t.Errorf("level %d: a switch that was not adopted is on", level)
+		}
 	}
 }
