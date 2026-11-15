@@ -145,6 +145,15 @@ type Params struct {
 	GuardFull  float64 `json:"guardFull"`
 	GuardFloor float64 `json:"guardFloor"`
 	GuardMin   float64 `json:"guardMin"`
+	// The stuck guard sees a week going wrong days before the account does: the share of
+	// the orders won three hours ago or longer that have never had a driver. It is 3% in
+	// an ordinary week; in the one bench week of 96 that ended under 90% on time it was
+	// 21% on Tuesday evening and 13% on Thursday morning, while the outlook above still
+	// read 95.5% or more. From StuckFrom the risk cap shrinks, down to StuckMin of it at
+	// StuckFull. StuckFrom 0 turns it off.
+	StuckFrom float64 `json:"stuckFrom"`
+	StuckFull float64 `json:"stuckFull"`
+	StuckMin  float64 `json:"stuckMin"`
 	// The other side of the guard: a week whose outlook stays far above the minimum has
 	// drivers to spare, and is held back by price, not by capacity. Between LoosenFrom and
 	// LoosenFull on-time outlook, the risk cap grows up to LoosenRisk times and the cost
@@ -637,6 +646,23 @@ func DefaultParamsFor(level int) Params {
 			p.FridayCost = 0.95
 			p.RiskFriday = 1.25
 			p.LateMax = 1
+			// e23: fee clocks that start over. A gig's fee creeps up while it waits, and it
+			// went on creeping while a driver held the gig: when that driver gave it back
+			// (39 single-car gigs a week) it returned at 1.09 times the typical fee against
+			// 0.93 at its first booking, and was taken again within four minutes. Now it is
+			// posted again from the opening fee when it has six hours of room. A chain that
+			// is given back (17 a week) gets a new attempt instead of being taken apart on
+			// the spot: 73% are booked again, at 0.81 of the typical fees. A gig or a chain
+			// made between 22:00 and 07:00 starts its clock in the morning, and the slow
+			// rise of a waiting gig's fee counts the drivers' hours only: at night hardly a
+			// driver looks. A post refused because a driver took the car's earlier gig in
+			// the same minute no longer marks the car for the top fee.
+			p.DropFreshMin = 360
+			p.NightClock = 1
+			p.ChainRecoverMin = 90
+			p.ChainNight = 1
+			p.HoldAwake = 1
+			p.RaceSafe = 1
 		}
 		if level == paramsShortageLevel {
 			// Level 7's competitor is only 12-38 % above the list price, so the cost decides

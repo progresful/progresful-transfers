@@ -112,6 +112,7 @@ func TestNightPostWaitsForTheMorning(t *testing.T) {
 func TestHoldRiseSleepsAtNight(t *testing.T) {
 	now, last, base := cal.At(0, 18*cal.Hour), cal.At(2, 16*cal.Hour), 10000
 	plain := DefaultParamsFor(8)
+	plain.HoldAwake = 0
 	awake := plain
 	awake.HoldAwake = 1
 	lead := last - plain.LeadMin
@@ -233,5 +234,26 @@ func TestMorningRoundStartsWaitingGigsOver(t *testing.T) {
 	e.Handle(nil)
 	if again, _, w := postsOf(e.Drain()); again != 0 || w != 0 {
 		t.Errorf("the round runs once a day, got %d posts and %d withdraws", again, w)
+	}
+}
+
+// The fee clocks that start over are level 8's (e23); the levels below keep the old clock.
+func TestFreshClocksByLevel(t *testing.T) {
+	for level := 1; level <= 8; level++ {
+		p := DefaultParamsFor(level)
+		on := level >= 8
+		want := Params{}
+		if on {
+			want.DropFreshMin, want.NightClock, want.ChainRecoverMin, want.ChainNight, want.HoldAwake, want.RaceSafe = 360, 1, 90, 1, 1, 1
+		}
+		if p.DropFreshMin != want.DropFreshMin || p.NightClock != want.NightClock || p.ChainRecoverMin != want.ChainRecoverMin ||
+			p.ChainNight != want.ChainNight || p.HoldAwake != want.HoldAwake || p.RaceSafe != want.RaceSafe {
+			t.Errorf("level %d: dropFreshMin %d, nightClock %d, chainRecoverMin %d, chainNight %d, holdAwake %d, raceSafe %d; want them on: %v",
+				level, p.DropFreshMin, p.NightClock, p.ChainRecoverMin, p.ChainNight, p.HoldAwake, p.RaceSafe, on)
+		}
+		// Measured and left off at every level.
+		if p.ChainBatch != 0 || p.War != 0 || p.BeliefFresh != 0 || p.PartialCap != 0 || p.PartialShare != 0 || p.StuckFrom != 0 {
+			t.Errorf("level %d: a rejected switch is on: %+v", level, []float64{float64(p.ChainBatch), p.War, float64(p.BeliefFresh), p.PartialCap, p.PartialShare, p.StuckFrom})
+		}
 	}
 }

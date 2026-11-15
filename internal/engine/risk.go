@@ -295,12 +295,61 @@ func (e *Engine) riskCap(d *dealerBook) float64 {
 		// A late order halves a dealer's trust: the more there is to lose, the less risk.
 		limit *= 1 - e.P.TrustRiskCut*float64(d.trust)/maxTrust
 	}
+	limit *= e.stuckFactor()
 	if e.P.GuardFull <= e.P.GuardFloor || e.P.GuardFull <= 0 {
 		return limit
 	}
 	outlook := e.onTimeOutlook()
 	room := (outlook - e.P.GuardFloor) / (e.P.GuardFull - e.P.GuardFloor)
 	return limit * math.Max(e.P.GuardMin, math.Min(1, room)) * (1 + (e.P.LoosenRisk-1)*e.spare(outlook))
+}
+
+const (
+	// stuckAfterMin is how long after it was won an order counts for the stuck guard, and
+	// stuckMinOrders how many such orders the guard needs before it says anything.
+	stuckAfterMin  = 3 * cal.Hour
+	stuckMinOrders = 30
+)
+
+// stuckShare is the share of the orders won at least stuckAfterMin ago that have never
+// had a driver: no booking so far, no car collected.
+func (e *Engine) stuckShare() float64 {
+	old, stuck := 0, 0
+	for _, ob := range e.orders {
+		if ob.cancelled || e.now-ob.wonAt < stuckAfterMin {
+			continue
+		}
+		old++
+		if ob.firstBookedAt == 0 && !ob.done() && e.neverCarried(ob) {
+			stuck++
+		}
+	}
+	if old < stuckMinOrders {
+		return 0
+	}
+	return float64(stuck) / float64(old)
+}
+
+// neverCarried reports whether no car of the order has a driver or has been moved. After
+// a restart the time of an order's first booking is not known, its gigs are.
+func (e *Engine) neverCarried(ob *orderBook) bool {
+	for i := range ob.legs {
+		lb := &ob.legs[i]
+		if lb.delivered || lb.pickedUp || (lb.gig != nil && (lb.gig.status == gigBooked || lb.gig.status == gigWorking)) {
+			return false
+		}
+	}
+	return true
+}
+
+// stuckFactor is the stuck guard's factor on the risk cap: 1 up to StuckFrom, StuckMin
+// from StuckFull.
+func (e *Engine) stuckFactor() float64 {
+	if e.P.StuckFrom <= 0 || e.P.StuckFull <= e.P.StuckFrom {
+		return 1
+	}
+	over := (e.stuckShare() - e.P.StuckFrom) / (e.P.StuckFull - e.P.StuckFrom)
+	return math.Max(e.P.StuckMin, math.Min(1, 1-over*(1-e.P.StuckMin)))
 }
 
 // spare is how far the week's on-time outlook is above what is needed, from 0 (at
