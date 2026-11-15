@@ -4,8 +4,8 @@ package engine
 // alter what the engine decides (not for refactors), together with VersionNote. Every
 // run records both, so a result can always be traced to the logic that produced it.
 const (
-	Version     = "e24"
-	VersionNote = "e23 with the lane's fee in place of the noise of a request's typical fee at level 8: when the typical fee is above 1.04 times the lane's own fee (589 lanes of 96 practice weeks, times the world's factor learned from the first twenty requests), the fee clock, the quote's cost and the lateness model all take the capped fee (refCap 1.04, refCapPrice, refCapRisk); +639 a week over e23 on 96 worlds, 48 of them held out (s.e. 75, better in 78), on time -0.1 points, no week under 90%; new switches, all off: refCapClock, guardGraceMin, riskMonday, returnReprice"
+	Version     = "e25"
+	VersionNote = "e24 with a lower fee-clock cap on lanes where drivers book at once and more caution in worlds with few drivers, at level 8: the clock is capped at 0.87 of the lane's fee on easy lanes and 0.94 on middle ones (110 lanes, laneQuick), the quote's cost on easy lanes at 0.95 (easyCap, midCap, easyPrice); the lower caps are off for a car under deadline pressure or late and while a tenth of the orders have never found a driver (rescueFrom 0.10); in a world under 720 drivers the modelled lateness risk counts 1.25 times (thinRoster, thinRisk); new switch, off: openScale"
 )
 
 // SourceHash identifies the exact source the binary was built from. scripts/build.sh

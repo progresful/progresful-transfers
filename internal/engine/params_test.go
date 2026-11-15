@@ -63,8 +63,15 @@ func TestFeeClockByLevel(t *testing.T) {
 		if p.HoldMax != holdMax || p.LateMax != lateMax {
 			t.Errorf("level %d: hold rises to %.2f, late fee to %.2f, want %.2f and %.2f", level, p.HoldMax, p.LateMax, holdMax, lateMax)
 		}
-		if p.SnowBuffer != 0 || p.SnowRisk != 0 || p.ThinRisk != 0 || p.ThinRoster != 0 || p.Outage != 0 {
-			t.Errorf("level %d: snow, thin-roster and outage switches should be off: %+v", level, []float64{p.SnowBuffer, p.SnowRisk, p.ThinRisk, float64(p.ThinRoster), p.Outage})
+		if p.SnowBuffer != 0 || p.SnowRisk != 0 || p.Outage != 0 {
+			t.Errorf("level %d: snow and outage switches should be off: %+v", level, []float64{p.SnowBuffer, p.SnowRisk, p.Outage})
+		}
+		thinRoster, thinRisk := 0, 0.0
+		if level == 8 {
+			thinRoster, thinRisk = 720, 1.25 // e25: more caution in a world with few drivers
+		}
+		if p.ThinRoster != thinRoster || p.ThinRisk != thinRisk {
+			t.Errorf("level %d: thin roster %d with risk %.2f, want %d and %.2f", level, p.ThinRoster, p.ThinRisk, thinRoster, thinRisk)
 		}
 		chainGain, rush := 0.0, 0.0
 		if level == 8 {

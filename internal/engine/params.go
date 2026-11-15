@@ -730,6 +730,26 @@ func DefaultParamsFor(level int) Params {
 			p.RefCap = 1.04
 			p.RefCapPrice = 1
 			p.RefCapRisk = 1
+			// e25: lanes where drivers book at once, and worlds with few drivers. The noise of
+			// the typical fee is an experiment on the fee clock, and it reads differently by
+			// lane. Where a third or more of a lane's orders are booked within ten minutes, a
+			// clock that opened lower was booked at a fee as much lower and no later (0.77 of
+			// the lane's fee against 0.88, late 1.5% against 1.6%); where few drivers book at
+			// once the same doubled the lateness. So the fee clock is capped at 0.87 of the
+			// lane's fee on easy lanes and 0.94 on middle ones (the table laneQuick, 110
+			// lanes), and the quote's cost on easy lanes at 0.95. The lower caps are off for
+			// a car under the pressure of its deadline or late, and while a tenth of the
+			// week's orders have never found a driver. Every weak week of the bench is in a
+			// world with few drivers, so in a world under 720 drivers the modelled risk
+			// counts 1.25 times. Against e24 on 96 worlds, 48 of them held out: the same
+			// money (+53 a week, s.e. 75) and safer where the danger is: in the 30 worlds
+			// under 720 drivers on time +0.69 points (s.e. 0.18), weeks under 93% on time 1
+			// against 3, all 96 ranked. On the 48 bench worlds +133 (s.e. 119), on time
+			// +0.41 points, the weakest week 94.8% against 92.1%.
+			p.EasyCap, p.MidCap = 0.87, 0.94
+			p.EasyPrice = 0.95
+			p.RescueFrom = 0.10
+			p.ThinRoster, p.ThinRisk = 720, 1.25
 		}
 		if level == paramsShortageLevel {
 			// Level 7's competitor is only 12-38 % above the list price, so the cost decides

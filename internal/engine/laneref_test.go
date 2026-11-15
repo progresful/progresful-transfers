@@ -226,8 +226,11 @@ func TestEasyLanesGetALowerClockCap(t *testing.T) {
 			}
 		})
 	}
-	if p := DefaultParamsFor(8); p.EasyCap != 0 || p.MidCap != 0 || p.EasyPrice != 0 || p.MidPrice != 0 || p.EasyFrom != 0.34 || p.MidFrom != 0.22 {
-		t.Errorf("defaults: easy and middle caps off, classes from 0.34 and 0.22; got %+v", []float64{p.EasyCap, p.MidCap, p.EasyPrice, p.MidPrice, p.EasyFrom, p.MidFrom})
+	if p := DefaultParamsFor(8); p.EasyCap != 0.87 || p.MidCap != 0.94 || p.EasyPrice != 0.95 || p.MidPrice != 0 || p.EasyFrom != 0.34 || p.MidFrom != 0.22 || p.RescueFrom != 0.10 || p.OpenScale != 0 {
+		t.Errorf("level 8 defaults (e25): caps 0.87 and 0.94, easy price 0.95, classes from 0.34 and 0.22, rescue from 0.10; got %+v", []float64{p.EasyCap, p.MidCap, p.EasyPrice, p.MidPrice, p.EasyFrom, p.MidFrom, p.RescueFrom, p.OpenScale})
+	}
+	if p := DefaultParamsFor(7); p.EasyCap != 0 || p.MidCap != 0 || p.EasyPrice != 0 || p.RescueFrom != 0 || p.ThinRisk != 0 {
+		t.Errorf("level 7 keeps the lower caps and the thin-world caution off, got %+v", []float64{p.EasyCap, p.MidCap, p.EasyPrice, p.RescueFrom, p.ThinRisk})
 	}
 }
 
