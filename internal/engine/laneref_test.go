@@ -285,3 +285,41 @@ func TestRescueTurnsTheEasyCapsOff(t *testing.T) {
 		})
 	}
 }
+
+// A car under the pressure of its deadline, or posted when it is already tight or late,
+// leaves the lower cap of an easy lane: its fee base is the general cap's.
+func TestPressedCarsLeaveTheEasyCap(t *testing.T) {
+	setup := func(deadline int) (*Engine, *orderBook, []Pending) {
+		e := laneEngine(t, 8, 1.04, 1)
+		e.P.EasyCap, e.P.Chains = 0.87, 0
+		laneQuick["a|b"] = 0.5
+		t.Cleanup(func() { delete(laneQuick, "a|b") })
+		seeWorld(e, 20)
+		req := laneRequest("R1", e.now, 5500)
+		req.Options[0].Deadline = deadline
+		req.Legs[0].Pickup.Window.To, req.Legs[0].Delivery.Window.To = deadline, deadline
+		e.onRequest(req)
+		e.Drain()
+		order := testOrder(req, "open", nil)
+		order.Deadline, order.LastPickupAt = deadline, deadline-30
+		e.onWon(order, e.now)
+		return e, e.orders["R1"], e.Drain()
+	}
+	// With a day in hand the gig opens on the easy cap, and the deadline's warning lifts it.
+	e, ob, sent := setup(cal.At(1, 20*cal.Hour))
+	g := ob.legs[0].gig
+	if len(sent) != 1 || g == nil || g.base != 4785 {
+		t.Fatalf("an easy lane's gig should open on a base of 4785, got %+v", g)
+	}
+	e.Resolve(sent, []api.ActionResult{{OK: true, ID: "g1"}})
+	e.SetNow(ob.order.LastPickupAt - 170)
+	e.Handle([]api.Event{{Kind: api.KindDeadlineClose, At: e.now, OrderID: "R1", LastPickupAt: ob.order.LastPickupAt}})
+	if open := ob.legs[0].gig; open == nil || open.base != 5500 {
+		t.Errorf("after the deadline's warning the fee base should be the general cap's 5500, got %+v", open)
+	}
+	// An order won with little time left is posted tight: on the general cap from the start.
+	e, ob, _ = setup(cal.At(0, 10*cal.Hour) + 50)
+	if tight := ob.legs[0].gig; tight == nil || tight.mode == modeBuffered || tight.base != 5500 {
+		t.Errorf("a tight car should be posted on a base of 5500, got %+v", tight)
+	}
+}

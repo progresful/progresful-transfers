@@ -425,6 +425,7 @@ func (e *Engine) onDeadlineClose(ev *api.Event) {
 	ob.urgent = true
 	ob.order.LastPickupAt = ev.LastPickupAt
 	for _, g := range e.gigsOf(ob) {
+		e.pressBase(g)
 		e.replan(g)
 	}
 	e.dispatch(ob)

@@ -63,7 +63,38 @@ func (e *Engine) tradeInDrive(ob *orderBook) int {
 // scaled to the lane each car has now, because a dealer can send a car somewhere else
 // after the order is won, and a fee for the old, shorter lane finds no driver.
 func (e *Engine) baseFee(ob *orderBook, legs []int) int {
-	ref := e.fairRef(ob.req)
+	return e.baseFeeOn(ob, legs, e.fairRef(ob.req))
+}
+
+// pressedFee is the fee base of cars that cannot wait for a cheaper driver: under the
+// pressure of their deadline, or late already. They go by the general cap, without the
+// lower one of a lane where drivers book readily (laneCap): with that lower base the late
+// fee rose less, and 11 of 96 weeks ended with a car not delivered, against 4.
+func (e *Engine) pressedFee(ob *orderBook, legs []int) int {
+	return e.baseFeeOn(ob, legs, e.cappedAt(ob.req, e.clockCap()))
+}
+
+// pressBase lifts an open gig's fee base to the pressed one, when its cars are one order's.
+func (e *Engine) pressBase(g *gigBook) {
+	if g.status != gigOpen || g.mode == modeChain || len(g.legs) == 0 {
+		return
+	}
+	ob := e.orders[g.legs[0].orderID]
+	if ob == nil {
+		return
+	}
+	legs := make([]int, 0, len(g.legs))
+	for _, ref := range g.legs {
+		if ref.orderID != ob.order.ID {
+			return
+		}
+		legs = append(legs, ref.leg)
+	}
+	g.base = max(g.base, e.pressedFee(ob, legs))
+}
+
+// baseFeeOn is baseFee on a given typical fee of the request.
+func (e *Engine) baseFeeOn(ob *orderBook, legs []int, ref int) int {
 	quoted, now := 0, 0
 	for i := range ob.order.Legs {
 		original := &ob.order.Legs[i]
@@ -184,6 +215,9 @@ func (e *Engine) post(ob *orderBook, legs []int) {
 		g.mode = modeTight
 	}
 	mode := g.mode
+	if mode == modeLate || mode == modeTight || ob.urgent {
+		g.base = max(g.base, e.pressedFee(ob, legs))
+	}
 	if e.P.SplitClock > 0 && ob.chainAt > 0 && ob.chainAt < e.now {
 		g.clockFrom = e.now - int(e.P.SplitClock*float64(e.now-ob.chainAt))
 	}
