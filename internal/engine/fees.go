@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"progresful-transfers/internal/api"
+	"progresful-transfers/internal/cal"
 )
 
 const (
@@ -79,8 +80,18 @@ func (p Params) Schedule(now, lastPickup, base int) []api.FeeStep {
 			times = append(times, onGrid(now+k*p.StepMin))
 		}
 	}
-	if hold, lead := now+p.discoveryEnd(), lastPickup-p.LeadMin; p.HoldMax > p.FeeMid && lead > hold {
+	hold, lead := now+p.discoveryEnd(), lastPickup-p.LeadMin
+	// With HoldAwake the slow rise counts only the hours in which drivers look at the app.
+	awake := 0
+	if p.HoldAwake == 1 && p.HoldMax > p.FeeMid && lead > hold {
+		awake = awakeMin(hold, lead)
+	}
+	if p.HoldMax > p.FeeMid && lead > hold {
 		for k := 1; k <= p.HoldSteps; k++ {
+			if awake > 0 {
+				times = append(times, onGrid(awakeAt(hold, awake*k/p.HoldSteps)))
+				continue
+			}
 			times = append(times, onGrid(hold+(lead-hold)*k/p.HoldSteps))
 		}
 	}
@@ -94,10 +105,54 @@ func (p Params) Schedule(now, lastPickup, base int) []api.FeeStep {
 		if t < now || t > final+stepGridMin {
 			continue
 		}
-		mult := math.Max(math.Max(p.discoveryMult(t-now), p.holdMult(t-now, lastPickup-t)), p.urgencyMult(lastPickup-t))
+		held := p.holdMult(t-now, lastPickup-t)
+		if awake > 0 && held > 0 {
+			held = lerp(p.FeeMid, p.HoldMax, float64(awakeMin(hold, min(t, lead)))/float64(awake))
+		}
+		mult := math.Max(math.Max(p.discoveryMult(t-now), held), p.urgencyMult(lastPickup-t))
 		steps = appendStep(steps, t, feeOf(base, mult))
 	}
 	return steps
+}
+
+// awakeMin is the minutes between from and to in which drivers look at the app: 07:00 to
+// 22:00 of each day.
+func awakeMin(from, to int) int {
+	total := 0
+	for day := cal.DayOf(from); day <= cal.DayOf(to); day++ {
+		if lo, hi := max(from, cal.At(day, nightTo)), min(to, cal.At(day, nightFrom)); hi > lo {
+			total += hi - lo
+		}
+	}
+	return total
+}
+
+// awakeAt is the minute by which that many of those minutes have passed since from.
+func awakeAt(from, minutes int) int {
+	const maxDays = 30
+	for day := cal.DayOf(from); day < cal.DayOf(from)+maxDays; day++ {
+		lo, hi := max(from, cal.At(day, nightTo)), cal.At(day, nightFrom)
+		if hi <= lo {
+			continue
+		}
+		if hi-lo >= minutes {
+			return lo + minutes
+		}
+		minutes -= hi - lo
+	}
+	return from + minutes
+}
+
+// fromMorning makes a schedule built for a later start valid from now: its first fee
+// already shows now.
+func fromMorning(steps []api.FeeStep, now int) []api.FeeStep {
+	if len(steps) == 0 || steps[0].At <= now {
+		return steps
+	}
+	out := make([]api.FeeStep, len(steps))
+	copy(out, steps)
+	out[0].At = now
+	return out
 }
 
 func onGrid(t int) int { return (t + stepGridMin - 1) / stepGridMin * stepGridMin }

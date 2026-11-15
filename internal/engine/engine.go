@@ -51,7 +51,10 @@ type Engine struct {
 	whyCap  float64
 	whyDown float64
 	whyLvl  float64
-	stats   Stats
+	whyWar  float64
+	// freshDay is the last day whose morning round of fresh fee clocks has run (-1: none).
+	freshDay int
+	stats    Stats
 	// replay is set while Rejoin feeds old events through the books: nothing is sent.
 	replay bool
 
@@ -67,18 +70,19 @@ type Engine struct {
 // New makes an engine for a world of the given level.
 func New(level int, p Params, m *geo.Map) *Engine {
 	e := &Engine{
-		P:       p,
-		Level:   level,
-		Map:     m,
-		drivers: map[string]*driverBook{},
-		reach:   map[string]int{},
-		regions: map[string][]string{},
-		reqs:    map[string]*api.PriceRequest{},
-		orders:  map[string]*orderBook{},
-		gigs:    map[string]*gigBook{},
-		stats:   newStats(),
-		quotes:  map[string]pendingQuote{},
-		facts:   map[string]notes.Facts{},
+		P:        p,
+		Level:    level,
+		Map:      m,
+		drivers:  map[string]*driverBook{},
+		reach:    map[string]int{},
+		regions:  map[string][]string{},
+		reqs:     map[string]*api.PriceRequest{},
+		orders:   map[string]*orderBook{},
+		gigs:     map[string]*gigBook{},
+		stats:    newStats(),
+		quotes:   map[string]pendingQuote{},
+		facts:    map[string]notes.Facts{},
+		freshDay: -1,
 	}
 	if e.P.MarketStart <= 0 {
 		e.P.MarketStart = marketStartFor(level)
@@ -131,6 +135,14 @@ func (e *Engine) send(a api.Action, done func(api.ActionResult)) {
 	e.outbox = append(e.outbox, Pending{Action: a, done: done})
 }
 
+// sendPost queues the post of a gig; until it is drained the gig can be taken back.
+func (e *Engine) sendPost(g *gigBook, done func(api.ActionResult)) {
+	if e.replay {
+		return
+	}
+	e.outbox = append(e.outbox, Pending{Action: g.post, done: done, gig: g})
+}
+
 func sortStrings(s []string) { sort.Strings(s) }
 
 // Drain hands over the actions decided since the last call.
@@ -153,6 +165,8 @@ type Decision struct {
 	// request's region (outage.go); Level is the market level the quote was priced against.
 	Outage float64 `json:"outage,omitempty"`
 	Level  float64 `json:"level,omitempty"`
+	// War is the chance, as the engine saw it, that the day was the week's price war day.
+	War float64 `json:"war,omitempty"`
 }
 
 // Reasons for passing on a request.
@@ -277,7 +291,7 @@ func (e *Engine) NextWake() int {
 			}
 		}
 	}
-	return min(wake, e.nextOfferWake(), e.nextRequoteWake())
+	return min(wake, e.nextOfferWake(), e.nextRequoteWake(), e.nextMorningWake())
 }
 
 // review looks at every open gig: one that drivers can no longer book inside its windows
@@ -291,6 +305,7 @@ func (e *Engine) review() {
 			e.reprice(g)
 		}
 	}
+	e.morningRound()
 	e.offerRound()
 	e.adoptOrphans()
 	e.requoteRound()

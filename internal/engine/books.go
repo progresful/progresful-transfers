@@ -103,6 +103,7 @@ type gigBook struct {
 	chainLast  int
 	// clockFrom is the minute the gig's fee clock counts from when that is before the
 	// post: a car that already waited in a chain attempt does not open at the lowest fee.
+	// For a chain made at night (ChainNight) it is the morning after the post.
 	clockFrom int
 	// dayLate marks a day-window gig (modeDay) whose day is after the deadline.
 	dayLate bool
@@ -133,4 +134,5 @@ func (g *gigBook) carries(ref legRef) bool {
 type Pending struct {
 	Action api.Action
 	done   func(api.ActionResult)
+	gig    *gigBook // the gig a post makes, so an unsent post can be taken back (chains.go)
 }

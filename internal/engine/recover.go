@@ -224,7 +224,76 @@ func (e *Engine) onReopened(ev *api.Event, noShow bool) {
 			ob.drops++
 		}
 	}
+	if e.recoverChain(g) || e.freshClock(g) {
+		return
+	}
 	e.replan(g)
+}
+
+// freshable reports whether an open gig may start its fee clock over: the single cars of
+// one order in the usual mode, not yet urgent, with at least room minutes left to book it.
+func (e *Engine) freshable(g *gigBook, room int) bool {
+	if g.mode != modeBuffered || g.id == "" || len(g.legs) == 0 {
+		return false
+	}
+	for _, ref := range g.legs {
+		if ref.orderID != g.legs[0].orderID {
+			return false
+		}
+		if ob := e.orders[ref.orderID]; ob == nil || ob.urgent || ob.legs[ref.leg].pickedUp {
+			return false
+		}
+	}
+	return e.lastPickupOfGig(g)-g.buffer-e.morning() >= room
+}
+
+// nextMorningWake is the next 07:00 when a morning round is due then (MorningFreshMin).
+func (e *Engine) nextMorningWake() int {
+	if e.P.MorningFreshMin <= 0 {
+		return e.endsAt
+	}
+	day := cal.DayOf(e.now)
+	if cal.MinuteOfDay(e.now) >= nightTo {
+		day++
+	}
+	if at := cal.At(day, nightTo); at > e.now {
+		return at
+	}
+	return e.endsAt
+}
+
+// morningRound posts the gigs that waited through the night again, once a day at 07:00
+// (MorningFreshMin). A gig whose clock starts this morning anyway is left alone.
+func (e *Engine) morningRound() {
+	day, minute := cal.DayOf(e.now), cal.MinuteOfDay(e.now)
+	if e.P.MorningFreshMin <= 0 || e.replay || minute < nightTo || minute >= nightFrom || day <= e.freshDay {
+		return
+	}
+	first := e.freshDay < 0
+	e.freshDay = day
+	if first {
+		return // the engine came in today: nothing of its own waited through the night
+	}
+	morning := cal.At(day, nightTo)
+	for _, g := range e.openGigs() {
+		if g.postedAt >= morning || g.clockFrom >= morning || !e.freshable(g, e.P.MorningFreshMin) {
+			continue
+		}
+		e.stats.MorningFresh++
+		e.repost(g)
+	}
+}
+
+// freshClock posts a single order's gig again when its driver gave it back with room to
+// spare (DropFreshMin): the new gig starts at the lowest fee, as the first one did. It
+// reports whether it did.
+func (e *Engine) freshClock(g *gigBook) bool {
+	if e.P.DropFreshMin <= 0 || !e.freshable(g, e.P.DropFreshMin) {
+		return false
+	}
+	e.stats.FreshClocks++
+	e.repost(g)
+	return true
 }
 
 func (e *Engine) onDriverLate(ev *api.Event) {

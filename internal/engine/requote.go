@@ -60,10 +60,10 @@ func (e *Engine) requote(id string) {
 		return
 	}
 	stats := e.stats.snapshotDeclines()
-	why, risk, limit, down, level := e.why, e.whyRisk, e.whyCap, e.whyDown, e.whyLvl
+	why, risk, limit, down, level, war := e.why, e.whyRisk, e.whyCap, e.whyDown, e.whyLvl, e.whyWar
 	prices := e.pricesFor(req) // replaces the pending quote when it prices the request
 	e.stats.restoreDeclines(stats)
-	e.why, e.whyRisk, e.whyCap, e.whyDown, e.whyLvl = why, risk, limit, down, level
+	e.why, e.whyRisk, e.whyCap, e.whyDown, e.whyLvl, e.whyWar = why, risk, limit, down, level, war
 	first := req.Options[0].Kind
 	was, now := old.Prices[first], prices[first]
 	if was <= 0 || now <= 0 || math.Abs(float64(now-was)) < e.P.RequoteMin*float64(was) {

@@ -272,13 +272,16 @@ const shareMinRequests = 12
 // pendingQuote remembers what was quoted, to learn from the dealer's answer.
 type pendingQuote struct {
 	Dealer string  `json:"dealer"`
-	Place  string  `json:"place"`           // pickup place of the first car
-	Day    int     `json:"day"`             // day the quote was made
-	Dest   string  `json:"dest"`            // delivery place of the first car
-	Level  float64 `json:"level"`           // the market level the quote was priced against
-	Ratio  float64 `json:"ratio"`           // quoted price over list price
-	Width  float64 `json:"width,omitempty"` // width of the win curve the quote was priced against
-	Fast   string  `json:"fast,omitempty"`  // the fastest option quoted, when several were
+	Place  string  `json:"place"`          // pickup place of the first car
+	Day    int     `json:"day"`            // day the quote was made
+	Dest   string  `json:"dest"`           // delivery place of the first car
+	Level  float64 `json:"level"`          // the market level the quote was priced against
+	Base   float64 `json:"base,omitempty"` // that level without the dealer's trust, as the beliefs held it
+	// Partial: the quote leaves out the request's fastest option (Params.PartialCap).
+	Partial bool    `json:"partial,omitempty"`
+	Ratio   float64 `json:"ratio"`           // quoted price over list price
+	Width   float64 `json:"width,omitempty"` // width of the win curve the quote was priced against
+	Fast    string  `json:"fast,omitempty"`  // the fastest option quoted, when several were
 	// Prices are the prices sent, By the request's deadline, Again whether the quote was
 	// looked at again before it (requote.go).
 	Prices map[string]int `json:"prices,omitempty"`
@@ -315,10 +318,10 @@ func (e *Engine) onRequest(req *api.PriceRequest) {
 		// now would make the dealer's old answer look like an answer to this price.
 		return
 	}
-	e.why, e.whyRisk, e.whyCap, e.whyDown, e.whyLvl = "", 0, 0, 0, 0
+	e.why, e.whyRisk, e.whyCap, e.whyDown, e.whyLvl, e.whyWar = "", 0, 0, 0, 0, 0
 	prices := e.pricesFor(req)
 	if !e.replay {
-		d := Decision{At: e.now, RequestID: req.ID, Risk: e.whyRisk, Cap: e.whyCap, Outage: e.whyDown, Level: e.whyLvl}
+		d := Decision{At: e.now, RequestID: req.ID, Risk: e.whyRisk, Cap: e.whyCap, Outage: e.whyDown, Level: e.whyLvl, War: e.whyWar}
 		if len(prices) == 0 {
 			d.Why = e.why
 		}
@@ -471,6 +474,13 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 		var chance float64
 		worth := e.trustWorthFor(d, risk) / list
 		ratio, chance = bestRatioAt(level, width, cost/list, worth, float64(floor)/list)
+		if b := e.market.beliefs; b != nil {
+			if war, shift := b.warCase(); war > 0 {
+				// Today may be the week's price war day: the price that pays best over both cases.
+				ratio, chance = outageRatio(war, math.Exp(shift), level, width, cost/list, worth, float64(floor)/list)
+				e.whyWar = war
+			}
+		}
 		if e.outage != nil {
 			if down := e.outage.chance(place, e.now); down > 0 {
 				ratio, chance = outageRatio(down, e.P.Outage, level, width, cost/list, worth, float64(floor)/list)
@@ -481,13 +491,29 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 			return 0 // the price that pays is far above what this dealer accepts
 		}
 	}
+	partial := len(req.Options) > 0 && ref.Kind != req.Options[0].Kind
+	if partial && e.P.Adaptive == 1 && e.P.PartialCap > 0 && e.P.PartialCap < 1 {
+		// The dealers that want the faster option refuse this one at any price: under the
+		// price that wins PartialCap of the time a lower quote only gives money away.
+		top := level
+		if b := e.market.beliefs; b != nil {
+			if war, shift := b.warCase(); war >= warLearnBar {
+				top += shift
+			}
+		}
+		ratio = math.Max(ratio, math.Exp(top-math.Log(e.P.PartialCap/(1-e.P.PartialCap))*width))
+	}
 	if d.requests >= shareMinRequests && float64(d.wins) > e.P.ShareCap*float64(d.requests) {
 		ratio *= 1 + e.P.ShareMarkup
 	}
 	if e.P.FridayMarkup > 1 && cal.DayOf(e.now) == fridayIndex {
 		ratio *= e.P.FridayMarkup
 	}
-	e.quotes[req.ID] = pendingQuote{Dealer: req.DealerID, Place: place, Dest: dest, Day: day, Level: level, Ratio: math.Max(ratio, float64(floor)/list), Width: width, At: e.now}
+	base := 0.0
+	if e.market.beliefs != nil {
+		base = level - e.market.trustShift(d, e.P.TrustBoost)
+	}
+	e.quotes[req.ID] = pendingQuote{Dealer: req.DealerID, Place: place, Dest: dest, Day: day, Level: level, Base: base, Partial: partial, Ratio: math.Max(ratio, float64(floor)/list), Width: width, At: e.now}
 	return ratio
 }
 

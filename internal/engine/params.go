@@ -176,6 +176,21 @@ type Params struct {
 	BeliefDealer float64 `json:"beliefDealer"`
 	BeliefPlace  float64 `json:"beliefPlace"`
 	BeliefDrift  float64 `json:"beliefDrift"`
+	// BeliefFresh 1 judges the answer to a quote against the level as the model sees it
+	// when the answer comes, not as it was when the quote went out: quotes sent together
+	// do not each count the same surprise in full.
+	BeliefFresh int `json:"beliefFresh"`
+	// PartialCap is the chance to win above which a quote without the request's fastest
+	// option is not priced lower: the dealers that want the speed refuse it at any price
+	// (such quotes won 51% where the model expected 62%, and 53% where it expected 73%).
+	// PartialShare is the share of dealers that take a slower option at all, for what a
+	// lost quote of that kind teaches the price model. 0: both off.
+	PartialCap   float64 `json:"partialCap"`
+	PartialShare float64 `json:"partialShare"`
+	// War is the competitor's prices on the week's price war day over its usual ones (the
+	// handbook says 0.8). With it the belief model watches for that day (war.go) and
+	// prices on both cases. 0: no watch.
+	War float64 `json:"war"`
 	// DayRate is how fast the market level follows the current day alone (per dealer and
 	// region too): the competitor's day factor, the price war and the outage. 0 turns it off.
 	DayRate float64 `json:"dayRate"`
@@ -315,6 +330,43 @@ type Params struct {
 	// ChainMinChance is the least chance of being booked (chains.go, chainChance) at which
 	// a chain is tried; with it the likeliest pairing wins instead of the shortest hop. 0: off.
 	ChainMinChance float64 `json:"chainMinChance"`
+	// ChainBatch 1 lets a car pair with a single car posted in the same step, whose post
+	// has not left for the app yet: that post is taken back and only the chain is sent.
+	// Without it two cars won in the same minute never meet.
+	ChainBatch int `json:"chainBatch"`
+	// ChainRecoverMin is the new attempt, in minutes, of a chain that its driver gave back
+	// (a drop or a no-show) while its cars still have ChainSlackMin of room: the chain is
+	// posted again on a fresh fee clock. 0: the chain is taken apart at once, because its
+	// first attempt ended long before.
+	ChainRecoverMin int `json:"chainRecoverMin"`
+	// MorningFreshMin posts every single order's gig that waited through the night again at
+	// 07:00, on a fresh fee clock, when it has at least this many minutes left to be
+	// booked. The morning brings other drivers than the evening had, and a fee that crept
+	// up since yesterday is more than the cheapest of them asks. 0: off.
+	MorningFreshMin int `json:"morningFreshMin"`
+	// RaceSafe 1 keeps a car's own windows when its post was refused only because a driver
+	// booked the car's earlier gig in the same minute. Without it such a car is marked for
+	// a post without windows, which is the tight mode at the top fee if it is ever posted
+	// again.
+	RaceSafe int `json:"raceSafe"`
+	// HoldAwake 1 lets the slow rise of a waiting gig's fee (FeeMid to HoldMax) count only
+	// the hours in which drivers look at the app, 07:00 to 22:00: a fee that creeps up
+	// through the night meets the morning's drivers higher than any of them asked for.
+	HoldAwake int `json:"holdAwake"`
+	// DropFreshMin posts a single order's gig again on a fresh fee clock when its driver
+	// gives it back with at least this many minutes left to book it. Left as it is, the
+	// gig comes back at the fee its clock reached while it was booked (1.09 times the
+	// typical fee against 0.93 at the first booking) and is taken within minutes at that
+	// fee. 0: off.
+	DropFreshMin int `json:"dropFreshMin"`
+	// NightClock 1 starts the fee clock of a single order's gig posted between 22:00 and
+	// 07:00 in the morning, when it has nightRoomMin left after that: at night hardly a
+	// driver looks, and the clock's cheap first hour would pass unseen.
+	NightClock int `json:"nightClock"`
+	// ChainNight 1 starts the attempt and the fee clock of a chain made between 22:00 and
+	// 07:00 in the morning: at night hardly a driver looks, and the attempt would be over
+	// before one does.
+	ChainNight int `json:"chainNight"`
 	// SplitClock is how much of a failed chain attempt's time the cars keep on their fee
 	// clock when they go alone: 0 opens them at FeeStart again, 1 opens them at the fee a
 	// car posted alone at the start of the attempt would show now.

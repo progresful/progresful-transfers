@@ -187,6 +187,11 @@ func (e *Engine) post(ob *orderBook, legs []int) {
 	if e.P.SplitClock > 0 && ob.chainAt > 0 && ob.chainAt < e.now {
 		g.clockFrom = e.now - int(e.P.SplitClock*float64(e.now-ob.chainAt))
 	}
+	if e.P.NightClock == 1 && g.mode == modeBuffered {
+		if from := e.morning(); from > e.now && lastPickup-buffer-from >= nightRoomMin {
+			g.clockFrom = from // posted at night with room: the clock waits for the drivers
+		}
+	}
 	g.plan = e.planFor(g, lastPickup)
 	g.shown = g.plan[0].FeeCents
 	audience := api.Audience{}
@@ -227,7 +232,7 @@ func (e *Engine) post(ob *orderBook, legs []int) {
 	}
 	g.post = api.Action{Type: api.ActPost, Stops: stops, Audience: &audience, Schedule: e.visible(g.plan)}
 	e.stats.Posts++
-	e.send(g.post, func(res api.ActionResult) { e.posted(ob, g, res) })
+	e.sendPost(g, func(res api.ActionResult) { e.posted(ob, g, res) })
 }
 
 // bufferedDelivery is the delivery stop's own window: it ends a buffer before the last
@@ -298,6 +303,11 @@ func (e *Engine) posted(ob *orderBook, g *gigBook, res api.ActionResult) {
 	e.stats.PostFailures++
 	for _, ref := range g.legs {
 		lb := &ob.legs[ref.leg]
+		if e.P.RaceSafe == 1 && lb.gig != nil && lb.gig != g && lb.gig.live() {
+			// A driver took the car's earlier gig while this post was on its way: the world
+			// refused a second gig for the car, and nothing was wrong with the post itself.
+			continue
+		}
 		if lb.gig == g {
 			lb.gig = nil
 		}
@@ -348,6 +358,10 @@ func (e *Engine) planFor(g *gigBook, lastPickup int) []api.FeeStep {
 	switch g.mode {
 	case modeBuffered:
 		g.bookableUntil = lastPickup - g.buffer
+		if g.clockFrom > e.now {
+			// Posted at night: the opening fee shows until the morning.
+			return capSchedule(fromMorning(p.Schedule(g.clockFrom, g.bookableUntil, g.base), e.now), onTimeCap)
+		}
 		if g.clockFrom > 0 && g.clockFrom < e.now {
 			return capSchedule(fromNow(p.Schedule(g.clockFrom, g.bookableUntil, g.base), e.now), onTimeCap)
 		}
@@ -363,6 +377,10 @@ func (e *Engine) planFor(g *gigBook, lastPickup int) []api.FeeStep {
 	case modeChain:
 		// bookableUntil is the end of the attempt, set when the chain was posted.
 		g.bookableUntil = g.chainUntil
+		if g.clockFrom > e.now {
+			// A chain made at night shows its opening fee until the morning.
+			return capSchedule(fromMorning(p.Schedule(g.clockFrom, lastPickup, g.base), e.now), onTimeCap)
+		}
 		return capSchedule(p.Schedule(e.now, lastPickup, g.base), onTimeCap)
 	case modeDay:
 		// bookableUntil is the end of the day's pickup window, set when the gig was posted.

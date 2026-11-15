@@ -179,6 +179,16 @@ type savedBeliefs struct {
 	Dealers    map[string]*belief `json:"dealers"`
 	Pickups    map[string]*belief `json:"pickups"`
 	Deliveries map[string]*belief `json:"deliveries"`
+	War        *savedWar          `json:"war,omitempty"`
+}
+
+// savedWar is the state of the price war watch (war.go).
+type savedWar struct {
+	Day      belief  `json:"day"`
+	Odds     float64 `json:"odds"`
+	Over     bool    `json:"over"`
+	CalmDays int     `json:"calmDays"`
+	Answers  int     `json:"answers"`
 }
 
 type savedDest struct {
@@ -206,6 +216,9 @@ func (e *Engine) SaveState(path string) error {
 	}
 	if b := e.market.beliefs; b != nil {
 		state.Beliefs = &savedBeliefs{World: b.world, Day: b.day, DayIndex: b.dayIndex, Dealers: b.dealers, Pickups: b.pickups, Deliveries: b.deliveries}
+		if w := b.war; w != nil {
+			state.Beliefs.War = &savedWar{Day: w.day, Odds: w.odds, Over: w.over, CalmDays: w.calmDays, Answers: w.answers}
+		}
 	}
 	data, err := json.Marshal(state)
 	if err != nil {
@@ -248,6 +261,9 @@ func (e *Engine) LoadState(path string) error {
 	}
 	if b, saved := e.market.beliefs, state.Beliefs; b != nil && saved != nil {
 		b.world, b.day, b.dayIndex = saved.World, saved.Day, saved.DayIndex
+		if w, was := b.war, saved.War; w != nil && was != nil {
+			w.day, w.odds, w.over, w.calmDays, w.answers = was.Day, was.Odds, was.Over, was.CalmDays, was.Answers
+		}
 		for group, from := range map[*map[string]*belief]map[string]*belief{&b.dealers: saved.Dealers, &b.pickups: saved.Pickups, &b.deliveries: saved.Deliveries} {
 			if from != nil {
 				*group = from

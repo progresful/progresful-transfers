@@ -20,6 +20,7 @@ type chainPlan struct {
 	hop     int // road minutes of the hops between the cars
 	drive   int // road minutes with a car
 	chance  float64
+	from    int // the minute the attempt's clock starts: now, or the morning for a chain made at night
 }
 
 // The chance that a driver books a chain within its attempt, fitted on 3,545 chain
@@ -127,14 +128,48 @@ func (e *Engine) chainTimes(seq []*orderBook) chainTimes {
 // time, and returns the plan.
 func (e *Engine) planChain(seq []*orderBook) (chainPlan, bool) {
 	t := e.chainTimes(seq)
-	if t.maxHop > e.P.ChainHopMin || t.drive+t.hops > multiCarDriveLimit || t.startBy-t.start < e.P.ChainSlackMin {
+	from := e.chainClock()
+	if t.maxHop > e.P.ChainHopMin || t.drive+t.hops > multiCarDriveLimit || t.startBy-max(t.start, from) < e.P.ChainSlackMin {
 		return chainPlan{}, false
 	}
 	// The first car must be collected while its site is open on the way to that plan.
 	if cal.NextOpen(seq[0].order.Legs[0].Pickup.Hours, t.start) > t.startBy {
 		return chainPlan{}, false
 	}
-	return chainPlan{orders: seq, startBy: t.startBy, hop: t.hops, drive: t.drive}, true
+	return chainPlan{orders: seq, startBy: t.startBy, hop: t.hops, drive: t.drive, from: from}, true
+}
+
+// Drivers hardly look at the app between nightFrom and nightTo: of the chains posted
+// around midnight one in twenty-five was booked within its attempt, against six in ten of
+// those posted in the morning. An attempt made in those hours also gets nightExtraMin more,
+// because the first hours of the day are slow.
+const (
+	nightFrom     = 22 * cal.Hour
+	nightTo       = 7 * cal.Hour
+	nightExtraMin = 60
+	// nightRoomMin is the room a single order's gig needs after the morning for its clock
+	// to wait until then (NightClock).
+	nightRoomMin = 360
+)
+
+// chainClock is the minute a chain attempt made now starts to count: now, or with
+// ChainNight the next morning when it is night.
+func (e *Engine) chainClock() int {
+	if e.P.ChainNight != 1 {
+		return e.now
+	}
+	return e.morning()
+}
+
+// morning is now in the hours when drivers look at the app, and the coming 07:00 at night.
+func (e *Engine) morning() int {
+	switch minute := cal.MinuteOfDay(e.now); {
+	case minute >= nightFrom:
+		return cal.At(cal.DayOf(e.now)+1, nightTo)
+	case minute < nightTo:
+		return cal.At(cal.DayOf(e.now), nightTo)
+	}
+	return e.now
 }
 
 // isChain reports whether a gig carries the single cars of more than one order.
@@ -188,7 +223,7 @@ func (e *Engine) findChain(ob *orderBook) (plan chainPlan, partner *gigBook, ok,
 	var best chainPlan
 	var bestGig *gigBook
 	found := false
-	for _, g := range e.openGigs() {
+	for _, g := range append(e.openGigs(), e.unsentSingles()...) {
 		single := g.mode == modeBuffered && len(g.legs) == 1
 		grows := g.mode == modeChain && len(g.legs) < e.P.ChainMaxCars
 		if (!single && !grows) || g.carries(legRef{orderID: ob.order.ID, leg: 0}) {
@@ -237,15 +272,87 @@ func (e *Engine) tryChain(ob *orderBook) bool {
 	if !ok {
 		return false
 	}
-	// The partner gig leaves the app; all its cars go into the new chain.
+	if partner.status == gigPending {
+		// Its post has not left yet: it is taken back, and the app only ever sees the chain.
+		if !e.unsend(partner) {
+			return false
+		}
+		e.stats.Posts--
+		e.stats.ChainsBatched++
+	} else {
+		// The partner gig leaves the app; all its cars go into the new chain.
+		e.send(api.Action{Type: api.ActWithdraw, GigID: partner.id}, nil)
+	}
 	partner.status = gigWithdrawn
-	e.send(api.Action{Type: api.ActWithdraw, GigID: partner.id}, nil)
-	e.postChain(plan)
+	e.postChain(plan, e.P.ChainTryMin)
 	return true
 }
 
-// postChain puts a chain in the app: each car collected and delivered, then the next.
-func (e *Engine) postChain(plan chainPlan) {
+// unsentSingles lists the single-car gigs posted in this step whose post is still in the
+// outbox (ChainBatch): the app has not seen them, so one can become a chain's partner
+// without a withdraw.
+func (e *Engine) unsentSingles() []*gigBook {
+	if e.P.ChainBatch != 1 {
+		return nil
+	}
+	var out []*gigBook
+	for i := range e.outbox {
+		g := e.outbox[i].gig
+		if g == nil || g.status != gigPending || g.mode != modeBuffered || len(g.legs) != 1 {
+			continue
+		}
+		// Only a car that has never been in a chain: two cars whose chain just ended are
+		// both posted in one step, and must not be put back together.
+		if ob := e.orders[g.legs[0].orderID]; ob != nil && ob.chainTries == 0 {
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
+// unsend takes a gig's post back from the outbox and reports whether it was there.
+func (e *Engine) unsend(g *gigBook) bool {
+	kept := make([]Pending, 0, len(e.outbox))
+	found := false
+	for _, p := range e.outbox {
+		if p.gig == g && !found {
+			found = true
+			continue
+		}
+		kept = append(kept, p)
+	}
+	e.outbox = kept
+	return found
+}
+
+// recoverChain gives a chain that its driver gave back a new attempt of ChainRecoverMin
+// minutes, when its cars still have the room a new chain needs: the gig leaves the app and
+// the same cars are posted as a chain again, on a fee clock that starts over, as a car
+// posted alone would. One driver wanted the chain, so another may; without this its first
+// attempt is long over and the review takes the chain apart in the same minute. It
+// reports whether the chain was posted again.
+func (e *Engine) recoverChain(g *gigBook) bool {
+	if e.P.ChainRecoverMin <= 0 || g.mode != modeChain || g.id == "" {
+		return false
+	}
+	seq := e.ordersOf(g)
+	if len(seq) < 2 {
+		return false
+	}
+	plan, ok := e.planChain(seq)
+	if !ok {
+		return false
+	}
+	g.status = gigWithdrawn
+	e.send(api.Action{Type: api.ActWithdraw, GigID: g.id}, nil)
+	e.stats.ChainsRecovered++
+	e.postChain(plan, e.P.ChainRecoverMin)
+	return true
+}
+
+// postChain puts a chain in the app: each car collected and delivered, then the next. The
+// attempt lasts tryMin minutes.
+func (e *Engine) postChain(plan chainPlan, tryMin int) {
 	g := &gigBook{status: gigPending, postedAt: e.now, mode: modeChain}
 	audience := api.Audience{}
 	stops := make([]api.StopRef, 0, 2*len(plan.orders))
@@ -268,7 +375,12 @@ func (e *Engine) postChain(plan chainPlan) {
 	g.base = int(float64(g.base) * e.P.ChainFeeShare)
 	// The attempt ends early enough for every car to find a driver on its own.
 	g.chainLast = plan.startBy
-	g.chainUntil = min(plan.startBy, e.now+e.P.ChainTryMin)
+	g.chainUntil = min(plan.startBy, e.now+tryMin)
+	if plan.from > e.now {
+		// Made at night: the attempt and its fee clock count from the morning.
+		g.clockFrom = plan.from
+		g.chainUntil = min(plan.startBy, plan.from+tryMin+nightExtraMin)
+	}
 	g.plan = e.planFor(g, plan.startBy)
 	g.shown = g.plan[0].FeeCents
 	g.post = api.Action{Type: api.ActPost, Stops: stops, Audience: &audience, Schedule: e.visible(g.plan)}
@@ -277,7 +389,7 @@ func (e *Engine) postChain(plan chainPlan) {
 	if len(plan.orders) > 2 {
 		e.stats.LongChains++
 	}
-	e.send(g.post, func(res api.ActionResult) { e.postedChain(g, res) })
+	e.sendPost(g, func(res api.ActionResult) { e.postedChain(g, res) })
 }
 
 // postedChain records the world's answer to a chain post. A refused chain frees its cars,

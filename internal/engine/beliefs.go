@@ -36,10 +36,20 @@ type beliefBook struct {
 	priorDealer float64
 	priorPlace  float64
 	drift       float64 // deviation added to dealers and places each morning: the competitor moves
+	fresh       bool    // answers are judged against the current level (Params.BeliefFresh)
+	partial     float64 // share of dealers that take a menu without the fastest option (Params.PartialShare)
+	war         *warWatch
 }
 
 func newBeliefBook(p Params) *beliefBook {
+	var war *warWatch
+	if p.War > 0 && p.War < 1 {
+		war = newWarWatch(p.War, p.BeliefDay)
+	}
 	return &beliefBook{
+		fresh:       p.BeliefFresh == 1 || war != nil,
+		partial:     p.PartialShare,
+		war:         war,
 		scale:       p.BeliefScale,
 		world:       belief{M: math.Log(p.MarketStart), V: p.BeliefWorld * p.BeliefWorld},
 		day:         belief{V: p.BeliefDay * p.BeliefDay},
@@ -61,6 +71,9 @@ func (b *beliefBook) roll(day int) {
 		return
 	}
 	first := b.dayIndex < 0
+	if b.war != nil {
+		b.war.roll(b.dayIndex, day)
+	}
 	b.dayIndex = day
 	b.day = belief{V: b.priorDay * b.priorDay}
 	if first {
@@ -119,24 +132,49 @@ func (b *beliefBook) level(dealer, pickup, delivery string, day int) (float64, f
 // learn updates the beliefs with the answer to a quote that was priced against the given
 // level (trust included) at the given ratio.
 func (b *beliefBook) learn(q pendingQuote, won bool) {
+	today := q.Day == b.dayIndex && q.Base != 0
+	if today && b.war != nil && b.war.open() {
+		b.learnBothCases(q, won)
+		return
+	}
 	parts := b.parts(q.Dealer, q.Place, q.Dest, q.Day == b.dayIndex)
-	v := 0.0
+	v, level := 0.0, q.Level
+	if b.fresh && today {
+		// The level as it is now: what the model has learned since the quote went out
+		// is already in it. The dealer's trust is the part the beliefs do not hold.
+		level += placeShift(q.Place, q.Dest) - q.Base
+		for _, part := range parts {
+			level += part.M
+		}
+	}
 	for _, part := range parts {
 		v += part.V
 	}
 	width := b.widthFor(v)
-	chance := sigmoid((q.Level - math.Log(q.Ratio)) / width)
+	chance := sigmoid((level - math.Log(q.Ratio)) / width)
 	y := 0.0
 	if won {
 		y = 1
 	}
-	gradient := (y - chance) / width
-	information := chance * (1 - chance) / (width * width)
+	damp := b.lossDamp(q, chance, won)
+	gradient := damp * (y - chance) / width
+	information := damp * chance * (1 - chance) / (width * width)
 	shrink := 1 + information*v
 	for _, part := range parts {
 		part.M += part.V * gradient / shrink
 		part.V -= part.V * part.V * information / shrink
 	}
+}
+
+// lossDamp is how much of a lost quote counts for the price model: all of it, except for
+// a quote without the request's fastest option. Only a share of the dealers takes such a
+// menu at all, so its loss is partly the wish for speed; with that share s and the chance
+// p to win on price alone, the loss says s(1-p)/(1-sp) of what a plain loss says.
+func (b *beliefBook) lossDamp(q pendingQuote, chance float64, won bool) float64 {
+	if won || !q.Partial || b.partial <= 0 || b.partial >= 1 {
+		return 1
+	}
+	return b.partial * (1 - chance) / (1 - b.partial*chance)
 }
 
 // placePickupEffect is the shift of the log price level by pickup place, fitted on the same
