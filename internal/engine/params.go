@@ -145,6 +145,18 @@ type Params struct {
 	GuardFull  float64 `json:"guardFull"`
 	GuardFloor float64 `json:"guardFloor"`
 	GuardMin   float64 `json:"guardMin"`
+	// GuardGraceMin keeps the guard from reacting to its own bookkeeping. The outlook counts
+	// every order without a driver as 14-32% likely late, a table measured on orders that
+	// were still waiting, and its prior (30 orders, 1.5 late) starts under GuardFull: on a
+	// Monday morning a handful of wins sent the risk cap from 0.12 to 0.06 by 10:00 with
+	// nothing late, and nine requests a week were refused that were under the cap. With
+	// the grace an order counts by the risk it was quoted at for its first GuardGraceMin
+	// minutes, and the prior is 30 orders with one late. 0: off.
+	GuardGraceMin int `json:"guardGraceMin"`
+	// RiskMonday is a factor on the risk cap on Monday, as RiskThursday and RiskFriday are
+	// on theirs: Monday's orders are late less often than modelled (1.9% against 2.7%).
+	// 0 or 1: none.
+	RiskMonday float64 `json:"riskMonday"`
 	// The stuck guard sees a week going wrong days before the account does: the share of
 	// the orders won three hours ago or longer that have never had a driver. It is 3% in
 	// an ordinary week; in the one bench week of 96 that ended under 90% on time it was
@@ -358,6 +370,13 @@ type Params struct {
 	// a post without windows, which is the tight mode at the top fee if it is ever posted
 	// again.
 	RaceSafe int `json:"raceSafe"`
+	// RefCap caps the typical fee that an order's fee clock is anchored on at RefCap times
+	// the lane's own fee (laneref.go): the noise of a request's typical fee is nothing a
+	// driver knows of. 0: off. RefCapPrice 1 builds the quote's cost on the capped fee too.
+	RefCap      float64 `json:"refCap"`
+	RefCapPrice int     `json:"refCapPrice"`
+	// RefCapRisk 1 lets the lateness model read the capped fee as well.
+	RefCapRisk int `json:"refCapRisk"`
 	// HoldAwake 1 lets the slow rise of a waiting gig's fee (FeeMid to HoldMax) count only
 	// the hours in which drivers look at the app, 07:00 to 22:00: a fee that creeps up
 	// through the night meets the morning's drivers higher than any of them asked for.
@@ -368,6 +387,11 @@ type Params struct {
 	// typical fee against 0.93 at the first booking) and is taken within minutes at that
 	// fee. 0: off.
 	DropFreshMin int `json:"dropFreshMin"`
+	// ReturnReprice 1 starts the clock of a returned gig over by a reprice instead of a new
+	// post: the rules let a reprice lower the fee, and a gig that comes back after a drop
+	// notifies the drivers near it again, which a new post of the same order does not. A
+	// single car that has a chain partner waiting is still posted again, into the chain.
+	ReturnReprice int `json:"returnReprice"`
 	// NightClock 1 starts the fee clock of a single order's gig posted between 22:00 and
 	// 07:00 in the morning, when it has nightRoomMin left after that: at night hardly a
 	// driver looks, and the clock's cheap first hour would pass unseen.

@@ -63,7 +63,7 @@ func (e *Engine) tradeInDrive(ob *orderBook) int {
 // scaled to the lane each car has now, because a dealer can send a car somewhere else
 // after the order is won, and a fee for the old, shorter lane finds no driver.
 func (e *Engine) baseFee(ob *orderBook, legs []int) int {
-	ref := ob.req.ReferenceFeeCents
+	ref := e.fairRef(ob.req)
 	quoted, now := 0, 0
 	for i := range ob.order.Legs {
 		original := &ob.order.Legs[i]

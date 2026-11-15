@@ -257,3 +257,63 @@ func TestFreshClocksByLevel(t *testing.T) {
 		}
 	}
 }
+
+// With ReturnReprice a returned gig stays in the app and gets its fresh clock by a reprice
+// to a lower fee; a car with a chain partner waiting is still posted again, into the chain.
+func TestReturnedGigIsRepricedDown(t *testing.T) {
+	e, g, opening := bookedSingle(t, 360, 240, cal.At(2, 20*cal.Hour))
+	e.P.ReturnReprice = 1
+	before := feeAt(g.plan, e.now)
+	e.Handle([]api.Event{{Kind: api.KindGigDropped, At: e.now, GigID: "g1", DriverID: "d1"}})
+	sent := e.Drain()
+	if len(sent) != 1 || sent[0].Action.Type != api.ActReprice || sent[0].Action.GigID != "g1" {
+		t.Fatalf("want one reprice of g1, got %+v", sent)
+	}
+	if got := sent[0].Action.Schedule[0].FeeCents; got != opening || got >= before {
+		t.Errorf("the reprice opens at %d, want the opening fee %d, under the %d shown before", got, opening, before)
+	}
+	if g.status != gigOpen || e.orders["R1"].legs[0].gig != g || e.stats.FreshClocks != 1 {
+		t.Errorf("the gig should stay the car's open gig (status %s, fresh clocks %d)", g.status, e.stats.FreshClocks)
+	}
+	if len(sent[0].Action.Schedule) < 2 || sent[0].Action.Schedule[1].At > e.now+20 {
+		t.Errorf("the new clock should rise after a quarter of an hour: %+v", sent[0].Action.Schedule[:min(3, len(sent[0].Action.Schedule))])
+	}
+
+	// A partner for a chain is waiting: the returned car is posted again, with it.
+	e, g, _ = bookedSingle(t, 360, 240, cal.At(2, 20*cal.Hour))
+	e.P.ReturnReprice = 1
+	partner := chainOrder(e, "R2", "b", "a", e.now, cal.At(2, 20*cal.Hour))
+	e.dispatch(partner)
+	e.Resolve(e.Drain(), []api.ActionResult{{OK: true, ID: "g2"}})
+	e.Handle([]api.Event{{Kind: api.KindGigDropped, At: e.now, GigID: "g1", DriverID: "d1"}})
+	singles, chains, withdraws := postsOf(e.Drain())
+	if chains != 1 || singles != 0 || withdraws != 2 || g.status != gigWithdrawn {
+		t.Errorf("want both gigs withdrawn and one chain posted, got %d chains, %d singles, %d withdraws (status %s)", chains, singles, withdraws, g.status)
+	}
+}
+
+// With ReturnReprice a chain that is given back keeps its gig: one reprice to its opening
+// fee starts the new attempt.
+func TestReturnedChainIsRepricedDown(t *testing.T) {
+	e, chain := bookedChain(t, 60, cal.At(1, 20*cal.Hour))
+	e.P.ReturnReprice = 1
+	opening := chain.post.Schedule[0].FeeCents
+	e.SetNow(e.now + 200)
+	e.Handle([]api.Event{{Kind: api.KindGigDropped, At: e.now, GigID: "g2", DriverID: "d1"}})
+	sent := e.Drain()
+	if len(sent) != 1 || sent[0].Action.Type != api.ActReprice || sent[0].Action.GigID != "g2" {
+		t.Fatalf("want one reprice of the chain, got %+v", sent)
+	}
+	if got := sent[0].Action.Schedule[0].FeeCents; got != opening {
+		t.Errorf("the chain's new clock opens at %d, want %d", got, opening)
+	}
+	if want := e.now + 60; chain.status != gigOpen || chain.chainUntil != want || chain.bookableUntil != want || e.stats.ChainsRecovered != 1 {
+		t.Errorf("the chain should stay open until %d: status %s, until %d, bookable until %d", want, chain.status, chain.chainUntil, chain.bookableUntil)
+	}
+	// Nobody takes it: at the end of the attempt the cars go alone.
+	e.SetNow(chain.chainUntil + 1)
+	e.Handle(nil)
+	if singles, chains, withdraws := postsOf(e.Drain()); withdraws != 1 || singles != 2 || chains != 0 {
+		t.Errorf("after the attempt: want one withdraw and two single posts, got %d, %d and %d chains", withdraws, singles, chains)
+	}
+}

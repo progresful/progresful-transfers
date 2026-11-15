@@ -261,7 +261,7 @@ func (e *Engine) costFloor(req *api.PriceRequest) int {
 	if e.Level < levelQuotes {
 		mult = e.P.CostMult
 	}
-	cost := float64(req.ReferenceFeeCents) * mult
+	cost := float64(e.priceRef(req)) * mult
 	margin := math.Max(float64(e.P.MinMarginCents), e.P.MinMarginShare*cost)
 	return int(math.Ceil(cost + margin))
 }
@@ -277,6 +277,7 @@ type pendingQuote struct {
 	Dest   string  `json:"dest"`           // delivery place of the first car
 	Level  float64 `json:"level"`          // the market level the quote was priced against
 	Base   float64 `json:"base,omitempty"` // that level without the dealer's trust, as the beliefs held it
+	Risk   float64 `json:"risk,omitempty"` // the modelled chance of a late arrival the quote was priced on
 	// Partial: the quote leaves out the request's fastest option (Params.PartialCap).
 	Partial bool    `json:"partial,omitempty"`
 	Ratio   float64 `json:"ratio"`           // quoted price over list price
@@ -307,6 +308,7 @@ func (e *Engine) onRequest(req *api.PriceRequest) {
 		return
 	}
 	if _, seen := e.reqs[req.ID]; !seen {
+		e.noteRef(req)
 		e.stats.Requests++
 		e.market.dealer(req.DealerID).requests++
 		e.listSum += req.Options[0].ListPriceCents
@@ -470,7 +472,7 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 	ratio := e.P.PriceMult
 	if e.P.Adaptive == 1 {
 		mult := e.costMultFor(req, ref)*e.dealerCost(req, d) + e.P.RiskSlope*risk
-		cost := float64(req.ReferenceFeeCents)*mult*e.dayCost()*e.laneCost(req)*e.readyCost(req, ref) + risk*(e.P.RiskCost*list+e.P.TrustGuard*e.trustAtStakeBy(d, ref.Deadline))
+		cost := float64(e.priceRef(req))*mult*e.dayCost()*e.laneCost(req)*e.readyCost(req, ref) + risk*(e.P.RiskCost*list+e.P.TrustGuard*e.trustAtStakeBy(d, ref.Deadline))
 		var chance float64
 		worth := e.trustWorthFor(d, risk) / list
 		ratio, chance = bestRatioAt(level, width, cost/list, worth, float64(floor)/list)
@@ -513,7 +515,7 @@ func (e *Engine) quoteRatio(req *api.PriceRequest, ref api.DeliveryOption, floor
 	if e.market.beliefs != nil {
 		base = level - e.market.trustShift(d, e.P.TrustBoost)
 	}
-	e.quotes[req.ID] = pendingQuote{Dealer: req.DealerID, Place: place, Dest: dest, Day: day, Level: level, Base: base, Partial: partial, Ratio: math.Max(ratio, float64(floor)/list), Width: width, At: e.now}
+	e.quotes[req.ID] = pendingQuote{Dealer: req.DealerID, Place: place, Dest: dest, Day: day, Level: level, Base: base, Risk: risk, Partial: partial, Ratio: math.Max(ratio, float64(floor)/list), Width: width, At: e.now}
 	return ratio
 }
 

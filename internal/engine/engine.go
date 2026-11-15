@@ -54,6 +54,10 @@ type Engine struct {
 	whyWar  float64
 	// freshDay is the last day whose morning round of fresh fee clocks has run (-1: none).
 	freshDay int
+	// refResid is the log of each request's typical fee over its lane's, sorted, and capRef
+	// the capped typical fee of the requests above their lane's (laneref.go).
+	refResid []float64
+	capRef   map[string]int
 	stats    Stats
 	// replay is set while Rejoin feeds old events through the books: nothing is sent.
 	replay bool
@@ -83,6 +87,7 @@ func New(level int, p Params, m *geo.Map) *Engine {
 		quotes:   map[string]pendingQuote{},
 		facts:    map[string]notes.Facts{},
 		freshDay: -1,
+		capRef:   map[string]int{},
 	}
 	if e.P.MarketStart <= 0 {
 		e.P.MarketStart = marketStartFor(level)

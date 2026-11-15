@@ -54,6 +54,9 @@ type orderBook struct {
 	noteDeadline int
 	// narrowed: the note gives a site shorter hours than stated; the car is posted day by day.
 	narrowed bool
+	// quotedRisk is the modelled chance of a late arrival that the order was quoted on
+	// (0: not known, after a restart).
+	quotedRisk float64
 	// chainTries counts the chain attempts the order has been in; after ChainTries it goes alone.
 	chainTries int
 	// chainAt is when the order's latest chain attempt was posted (0: never in one).

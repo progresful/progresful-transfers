@@ -44,6 +44,9 @@ func (e *Engine) onWon(o *api.Order, at int) {
 		e.winsDay, e.winsToday = day, 0
 	}
 	e.winsToday++
+	if q, ok := e.quotes[o.ID]; ok {
+		ob.quotedRisk = q.Risk
+	}
 	if q, ok := e.quotes[o.ID]; ok && q.Fast != "" {
 		// The dealer had a choice of options: count whether it took the fastest.
 		d := e.market.dealer(o.DealerID)
@@ -292,8 +295,41 @@ func (e *Engine) freshClock(g *gigBook) bool {
 		return false
 	}
 	e.stats.FreshClocks++
+	if e.P.ReturnReprice == 1 && !e.hasChainPartner(g) {
+		e.restartClock(g)
+		return true
+	}
 	e.repost(g)
 	return true
+}
+
+// hasChainPartner reports whether the single car of an open gig would go into a chain if
+// it were posted again now.
+func (e *Engine) hasChainPartner(g *gigBook) bool {
+	if e.P.Chains != 1 || e.Level < levelNetwork || len(g.legs) != 1 {
+		return false
+	}
+	ob := e.orders[g.legs[0].orderID]
+	if ob == nil || ob.urgent || !e.chainable(ob) || e.rushable(ob, []int{g.legs[0].leg}) {
+		return false
+	}
+	_, _, ok, _ := e.findChain(ob)
+	return ok
+}
+
+// restartClock starts an open gig's fee plan over, from the opening fee, by a reprice: the
+// gig stays in the app, where its return has just notified the drivers near it. At night
+// the new clock waits for the morning, as a new post's would (NightClock).
+func (e *Engine) restartClock(g *gigBook) {
+	last := e.lastPickupOfGig(g)
+	g.clockFrom = 0
+	if e.P.NightClock == 1 {
+		if from := e.morning(); from > e.now && last-g.buffer-from >= nightRoomMin {
+			g.clockFrom = from
+		}
+	}
+	g.plan = e.planFor(g, last)
+	e.reprice(g)
 }
 
 func (e *Engine) onDriverLate(ev *api.Event) {

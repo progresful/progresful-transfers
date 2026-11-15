@@ -35,6 +35,7 @@ type Stats struct {
 	ChainsBatched    int            `json:"chainsBatched"`
 	ChainsRecovered  int            `json:"chainsRecovered"`
 	FreshClocks      int            `json:"freshClocks"`
+	RefCapped        int            `json:"refCapped"`
 	MorningFresh     int            `json:"morningFresh"`
 	ChainProspects   int            `json:"chainProspects"`
 	Duplicates       int            `json:"duplicates"`

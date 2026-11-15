@@ -343,9 +343,26 @@ func (e *Engine) recoverChain(g *gigBook) bool {
 	if !ok {
 		return false
 	}
+	e.stats.ChainsRecovered++
+	if e.P.ReturnReprice == 1 {
+		// The chain keeps its place in the app, where its return has just notified the
+		// drivers near it, and its attempt and fee clock start over by a reprice.
+		for _, ob := range plan.orders {
+			ob.chainTries++
+		}
+		e.stats.Chains++
+		g.chainLast, g.clockFrom = plan.startBy, 0
+		g.chainUntil = min(plan.startBy, e.now+e.P.ChainRecoverMin)
+		if plan.from > e.now {
+			g.clockFrom = plan.from
+			g.chainUntil = min(plan.startBy, plan.from+e.P.ChainRecoverMin+nightExtraMin)
+		}
+		g.plan = e.planFor(g, plan.startBy)
+		e.reprice(g)
+		return true
+	}
 	g.status = gigWithdrawn
 	e.send(api.Action{Type: api.ActWithdraw, GigID: g.id}, nil)
-	e.stats.ChainsRecovered++
 	e.postChain(plan, e.P.ChainRecoverMin)
 	return true
 }

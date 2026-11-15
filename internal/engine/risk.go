@@ -188,7 +188,7 @@ func (e *Engine) lateRisk(req *api.PriceRequest, opt api.DeliveryOption) float64
 			leg, from, by = e.realLeg(req), ready, deadline
 		}
 		if e.P.RiskModel == riskModelLaneID {
-			risk := e.laneRisk(leg, req.RespondBy, from, by, opt.Kind, req.ReferenceFeeCents, req.Options[0].ListPriceCents)
+			risk := e.laneRisk(leg, req.RespondBy, from, by, opt.Kind, e.riskRef(req), req.Options[0].ListPriceCents)
 			worst = math.Max(worst, e.snowRisk(e.thinRisk(risk), leg, req.RespondBy, by))
 			continue
 		}
@@ -203,6 +203,10 @@ const (
 	guardPriorLate   = 1.5
 	// bookedLateRisk is the share of orders with a driver that still arrive late (drops, slow drives).
 	bookedLateRisk = 0.015
+	// With GuardGraceMin the prior is 30 orders with one late (96.7%, what a week ends at),
+	// and a fresh order counts at least guardGraceRisk.
+	guardGracePriorLate = 1.0
+	guardGraceRisk      = 0.03
 )
 
 // unbookedLateRisk is the chance that an order without a driver ends late, by the minutes
@@ -232,6 +236,9 @@ func unbookedLateRisk(minutesLeft int) float64 {
 // looks ahead: late orders show in the account only hours or days after they were won.
 func (e *Engine) onTimeOutlook() float64 {
 	orders, late := guardPriorOrders, guardPriorLate
+	if e.P.GuardGraceMin > 0 {
+		late = guardGracePriorLate
+	}
 	for _, ob := range e.orders {
 		if ob.cancelled {
 			continue
@@ -260,7 +267,13 @@ func (e *Engine) openLateRisk(ob *orderBook) float64 {
 		case lb.gig != nil && (lb.gig.status == gigBooked || lb.gig.status == gigWorking):
 			risk = math.Max(risk, bookedLateRisk)
 		default:
-			risk = math.Max(risk, unbookedLateRisk(e.lastPickupOf(ob, []int{i})-e.now))
+			waiting := unbookedLateRisk(e.lastPickupOf(ob, []int{i}) - e.now)
+			if e.P.GuardGraceMin > 0 && ob.firstBookedAt == 0 && e.now-ob.wonAt < e.P.GuardGraceMin {
+				// Just won: it has not had the time to find a driver, and counts by the
+				// risk it was quoted on, not as an order that nobody wants.
+				waiting = math.Min(waiting, math.Max(ob.quotedRisk, guardGraceRisk))
+			}
+			risk = math.Max(risk, waiting)
 		}
 	}
 	return risk
@@ -286,6 +299,10 @@ func (e *Engine) riskCap(d *dealerBook) float64 {
 	// learned to wait, no later days to make up for them): 8.5% on Thursdays and 11.6% on
 	// Fridays against 4% early in the week.
 	switch cal.DayOf(e.now) {
+	case 0:
+		if e.P.RiskMonday > 0 {
+			limit *= e.P.RiskMonday
+		}
 	case thursdayIndex:
 		limit *= e.P.RiskThursday
 	case fridayIndex:
